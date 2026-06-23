@@ -25,7 +25,7 @@ Current decided stack:
 
 Current branch:
 
-- `phase-1-shell` for the first desktop shell/tray work.
+- `codex/phase-3-providers` for current provider work.
 - Dev/test should happen natively on Windows at `C:\Users\rupes\Documents\InfUsage`.
 
 Phase 1 current shell:
@@ -55,3 +55,4 @@ Phase 3 current state:
 - The DeepSeek JavaScript plugin normalizes host-provided balance JSON through `ctx.host`.
 - DeepSeek API keys are saved through Rust into Windows Credential Manager.
 - The popup can save one DeepSeek key, delete it to replace it, refresh balance, and render only USD remaining.
+- Codex provider slice is in progress: Rust reads local Codex `auth.json`, refreshes expired login once, calls the undocumented usage endpoint, and exposes only plan/session remaining/session reset/weekly remaining/weekly reset/credits summary JSON to the plugin/UI.

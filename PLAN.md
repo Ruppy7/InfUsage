@@ -133,6 +133,8 @@ Ponytail scope: prove the desktop shell first, then add tray behavior. No settin
 - [x] Add UI/API-key flow backed by Windows Credential Manager.
 - [x] Support one saved DeepSeek key and show only USD remaining.
 - [x] Keep credentials in the trusted host.
+- [x] Add a minimal Codex provider slice: Rust reads local Codex auth, refreshes expired login once, calls the undocumented usage endpoint, and exposes only sanitized remaining-quota/reset summary JSON to the JavaScript plugin.
+- [ ] Windows checkpoint: verify Codex refresh from the tray popup against the user's local Codex login.
 
 ## Phase 4 — Storage and history
 
@@ -141,7 +143,7 @@ Ponytail scope: prove the desktop shell first, then add tray behavior. No settin
 
 ## Phase 5 — More providers
 
-- OpenAI Codex provider.
+- OpenAI Codex provider deeper follow-ups only if needed: reset timing, stale state, plan labels, model-specific limits.
 - Anthropic Claude / Claude Code provider.
 - OpenCode Go provider.
 - Antigravity provider.

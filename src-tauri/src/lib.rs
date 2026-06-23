@@ -11,9 +11,11 @@ pub fn run() {
             tray::create(app)?;
             let _ = plugin_host::run_demo_provider(&plugin_host::InfUsageHost);
             let _ = plugin_host::run_deepseek_provider(&plugin_host::InfUsageHost);
+            let _ = plugin_host::run_codex_provider(&plugin_host::InfUsageHost);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::refresh_codex,
             commands::save_deepseek_api_key,
             commands::list_deepseek_api_keys,
             commands::delete_deepseek_api_key,

@@ -1,4 +1,8 @@
-use crate::{plugin_host, providers::deepseek, secrets};
+use crate::{
+    plugin_host,
+    providers::{codex, deepseek},
+    secrets,
+};
 
 struct DeepSeekHost {
     balance_json: String,
@@ -9,8 +13,30 @@ impl plugin_host::Host for DeepSeekHost {
         "InfUsage"
     }
 
+    fn codex_usage_json(&self) -> String {
+        "{}".to_string()
+    }
+
     fn deepseek_balance_json(&self) -> String {
         self.balance_json.clone()
+    }
+}
+
+struct CodexHost {
+    usage_json: String,
+}
+
+impl plugin_host::Host for CodexHost {
+    fn app_name(&self) -> &'static str {
+        "InfUsage"
+    }
+
+    fn codex_usage_json(&self) -> String {
+        self.usage_json.clone()
+    }
+
+    fn deepseek_balance_json(&self) -> String {
+        "{}".to_string()
     }
 }
 
@@ -69,4 +95,11 @@ pub fn refresh_deepseek() -> Result<plugin_host::ProviderSnapshot, String> {
 
     plugin_host::run_deepseek_provider(&DeepSeekHost { balance_json })
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn refresh_codex() -> Result<plugin_host::ProviderSnapshot, String> {
+    let usage_json = codex::fetch_usage_summary_json().map_err(|error| error.to_string())?;
+
+    plugin_host::run_codex_provider(&CodexHost { usage_json }).map_err(|error| error.to_string())
 }

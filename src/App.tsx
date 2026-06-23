@@ -17,13 +17,14 @@ type DeepSeekKeySlot = {
   has_key: boolean;
 };
 
-const placeholders = ["Codex", "Claude / Claude Code", "OpenCode Go", "Antigravity"];
+const placeholders = ["Claude / Claude Code", "OpenCode Go", "Antigravity"];
 
 function App() {
   const [apiKey, setApiKey] = useState("");
   const [keySlots, setKeySlots] = useState<DeepSeekKeySlot[]>([]);
   const [isAddingKey, setIsAddingKey] = useState(false);
-  const [snapshot, setSnapshot] = useState<ProviderSnapshot | null>(null);
+  const [codexSnapshot, setCodexSnapshot] = useState<ProviderSnapshot | null>(null);
+  const [deepseekSnapshot, setDeepseekSnapshot] = useState<ProviderSnapshot | null>(null);
   const [status, setStatus] = useState("Idle");
   const [error, setError] = useState("");
 
@@ -64,7 +65,7 @@ function App() {
     try {
       const slots = await invoke<DeepSeekKeySlot[]>("delete_deepseek_api_key", { slot });
       setKeySlots(slots);
-      setSnapshot(null);
+      setDeepseekSnapshot(null);
       setIsAddingKey(slots.every((nextSlot) => !nextSlot.has_key));
       setStatus("Deleted");
     } catch (caught) {
@@ -78,7 +79,20 @@ function App() {
     setStatus("Refreshing");
     try {
       const nextSnapshot = await invoke<ProviderSnapshot>("refresh_deepseek");
-      setSnapshot(nextSnapshot);
+      setDeepseekSnapshot(nextSnapshot);
+      setStatus("Updated");
+    } catch (caught) {
+      setStatus("Error");
+      setError(String(caught));
+    }
+  }
+
+  async function refreshCodex() {
+    setError("");
+    setStatus("Refreshing");
+    try {
+      const nextSnapshot = await invoke<ProviderSnapshot>("refresh_codex");
+      setCodexSnapshot(nextSnapshot);
       setStatus("Updated");
     } catch (caught) {
       setStatus("Error");
@@ -97,6 +111,28 @@ function App() {
       </header>
 
       <section className="provider-list" aria-label="Providers">
+        <div className="provider-block">
+          <div className="provider-row">
+            <span>Codex</span>
+            <span className={codexSnapshot ? "ok" : "muted"}>
+              {codexSnapshot ? "Updated" : "Uses local login"}
+            </span>
+          </div>
+
+          <div className="deepseek-actions">
+            <button onClick={refreshCodex} type="button">
+              Refresh
+            </button>
+          </div>
+
+          {codexSnapshot?.lines.map((line) => (
+            <div className="metric-row" key={line.label}>
+              <span>{line.label}</span>
+              <strong>{line.value}</strong>
+            </div>
+          ))}
+        </div>
+
         <div className="provider-block">
           <div className="provider-row">
             <span>DeepSeek</span>
@@ -151,7 +187,7 @@ function App() {
             </button>
           </div>
 
-          {snapshot?.lines.map((line) => (
+          {deepseekSnapshot?.lines.map((line) => (
             <div className="metric-row" key={line.label}>
               <span>{line.label}</span>
               <strong>{line.value}</strong>

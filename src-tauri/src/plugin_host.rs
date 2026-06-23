@@ -21,6 +21,7 @@ pub struct MetricLine {
 
 pub trait Host {
     fn app_name(&self) -> &'static str;
+    fn codex_usage_json(&self) -> String;
     fn deepseek_balance_json(&self) -> String;
 }
 
@@ -29,6 +30,10 @@ pub struct InfUsageHost;
 impl Host for InfUsageHost {
     fn app_name(&self) -> &'static str {
         "InfUsage"
+    }
+
+    fn codex_usage_json(&self) -> String {
+        r#"{"plan_type":null,"session_remaining_percent":null,"session_reset_at":null,"weekly_remaining_percent":null,"weekly_reset_at":null,"credits_balance":null}"#.to_string()
     }
 
     fn deepseek_balance_json(&self) -> String {
@@ -66,6 +71,42 @@ function probe(ctx) {
 }
 "#;
 
+const CODEX_PROVIDER: &str = r#"
+function formatResetAt(seconds) {
+  const date = new Date(seconds * 1000);
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${pad(date.getDate())}-${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function probe(ctx) {
+  const usage = JSON.parse(ctx.host.codexUsageJson());
+  const lines = [];
+
+  if (usage.plan_type) {
+    lines.push({ label: "Plan", value: String(usage.plan_type) });
+  }
+
+  if (usage.session_remaining_percent !== null && usage.session_remaining_percent !== undefined) {
+    const reset = usage.session_reset_at ? ` - ${formatResetAt(usage.session_reset_at)}` : "";
+    lines.push({ label: "Session remaining", value: `${usage.session_remaining_percent}%${reset}` });
+  }
+
+  if (usage.weekly_remaining_percent !== null && usage.weekly_remaining_percent !== undefined) {
+    const reset = usage.weekly_reset_at ? ` - ${formatResetAt(usage.weekly_reset_at)}` : "";
+    lines.push({ label: "Weekly remaining", value: `${usage.weekly_remaining_percent}%${reset}` });
+  }
+
+  if (usage.credits_balance !== null && usage.credits_balance !== undefined) {
+    lines.push({ label: "Credits", value: String(usage.credits_balance) });
+  }
+
+  return {
+    providerId: "codex",
+    lines
+  };
+}
+"#;
+
 #[derive(Debug)]
 pub enum PluginRunError {
     Runtime(rquickjs::Error),
@@ -97,6 +138,10 @@ pub fn run_deepseek_provider(host: &impl Host) -> Result<ProviderSnapshot, Plugi
     run_provider(DEEPSEEK_PROVIDER, host)
 }
 
+pub fn run_codex_provider(host: &impl Host) -> Result<ProviderSnapshot, PluginRunError> {
+    run_provider(CODEX_PROVIDER, host)
+}
+
 pub fn run_provider(source: &str, host: &impl Host) -> Result<ProviderSnapshot, PluginRunError> {
     let runtime = Runtime::new()?;
     runtime.set_memory_limit(PLUGIN_MEMORY_LIMIT_BYTES);
@@ -109,11 +154,16 @@ pub fn run_provider(source: &str, host: &impl Host) -> Result<ProviderSnapshot, 
 
     let context = Context::full(&runtime)?;
     let app_name = host.app_name().to_string();
+    let codex_usage_json = host.codex_usage_json();
     let deepseek_balance_json = host.deepseek_balance_json();
 
     context.with(|ctx| -> Result<ProviderSnapshot, PluginRunError> {
         let host = Object::new(ctx.clone())?;
         host.set("appName", Func::new(move || app_name.clone()))?;
+        host.set(
+            "codexUsageJson",
+            Func::new(move || codex_usage_json.clone()),
+        )?;
         host.set(
             "deepseekBalanceJson",
             Func::new(move || deepseek_balance_json.clone()),
@@ -166,12 +216,17 @@ mod tests {
     use super::*;
 
     struct FakeHost {
+        codex_usage_json: String,
         deepseek_balance_json: String,
     }
 
     impl Host for FakeHost {
         fn app_name(&self) -> &'static str {
             "InfUsage"
+        }
+
+        fn codex_usage_json(&self) -> String {
+            self.codex_usage_json.clone()
         }
 
         fn deepseek_balance_json(&self) -> String {
@@ -228,6 +283,7 @@ mod tests {
     #[test]
     fn deepseek_provider_normalizes_balance_lines() {
         let host = FakeHost {
+            codex_usage_json: "{}".to_string(),
             deepseek_balance_json: r#"
             {
               "is_available": true,
@@ -254,6 +310,51 @@ mod tests {
                     label: "USD remaining".to_string(),
                     value: "12.50".to_string(),
                 }],
+            }
+        );
+    }
+
+    #[test]
+    fn codex_provider_normalizes_usage_lines() {
+        let host = FakeHost {
+            codex_usage_json: r#"
+            {
+              "plan_type": "pro",
+              "session_remaining_percent": 12.5,
+              "session_reset_at": 1782229464,
+              "weekly_remaining_percent": 50,
+              "weekly_reset_at": 1782557292,
+              "credits_balance": 9
+            }
+            "#
+            .to_string(),
+            deepseek_balance_json: "{}".to_string(),
+        };
+
+        let snapshot = run_codex_provider(&host).expect("Codex plugin should run");
+
+        assert_eq!(
+            snapshot,
+            ProviderSnapshot {
+                provider_id: "codex".to_string(),
+                lines: vec![
+                    MetricLine {
+                        label: "Plan".to_string(),
+                        value: "pro".to_string(),
+                    },
+                    MetricLine {
+                        label: "Session remaining".to_string(),
+                        value: "12.5% - 23-06 21:14".to_string(),
+                    },
+                    MetricLine {
+                        label: "Weekly remaining".to_string(),
+                        value: "50% - 27-06 16:18".to_string(),
+                    },
+                    MetricLine {
+                        label: "Credits".to_string(),
+                        value: "9".to_string(),
+                    },
+                ],
             }
         );
     }
