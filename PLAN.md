@@ -137,6 +137,9 @@ Ponytail scope: prove the desktop shell first, then add tray behavior. No settin
 - [ ] Windows checkpoint: verify Codex refresh from the tray popup against the user's local Codex login.
 - [x] Add a minimal Claude / Claude Code provider slice: Rust reads local Claude Code credentials, refreshes expired login once, calls the undocumented OAuth usage endpoint, and exposes only sanitized remaining-quota/reset summary JSON to the JavaScript plugin.
 - [ ] Windows checkpoint: verify Claude refresh from the tray popup against the user's local Claude Code login.
+- [x] Keep the fixed tray panel usable as provider rows grow by making the provider list scroll within the popup.
+- [ ] OpenCode Go checkpoint: authenticate the web workspace `/go` page, then extract server-rendered `rollingUsage`, `weeklyUsage`, `monthlyUsage`, `resetInSec`, `usagePercent`, and `useBalance`. Do not use local SQLite spend as the provider source.
+- [ ] Antigravity checkpoint: start Antigravity or `agy`, then discover the local language server and call `GetUserStatus`.
 
 ## Phase 4 — Storage and history
 
