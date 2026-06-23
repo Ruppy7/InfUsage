@@ -38,3 +38,10 @@ Phase 1 current shell:
 - Windows popup UI checkpoint passed after pulling latest `phase-1-shell`.
 - Windows Phase 1 checkpoint passed with `npm run tauri dev`.
 - Visual Studio Build Tools were not installed for the checkpoint; defer until a native build/link failure requires them.
+
+Phase 2 current state:
+
+- D4 decided: QuickJS via `rquickjs`.
+- `rquickjs` builds on Windows.
+- A trivial JavaScript provider runs through an injected `ctx.host` boundary in a Rust unit test.
+- The prototype runner has a timeout, memory limit, stack limit, and basic output validation.

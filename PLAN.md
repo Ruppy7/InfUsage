@@ -28,7 +28,7 @@ Decision → Concept → Build → Checkpoint
 | D1 | Desktop shell | Tauri v2 · Electron · WinUI/WPF · Flutter | ✅ **Decided: Tauri v2** | Best fit for an always-on tray utility: small WebView shell, Rust-native host, tray APIs, and a capability/security model that fits the host/UI/plugin boundary. |
 | D2 | Frontend | React+TS · Svelte · SolidJS · plain TS | ✅ **Decided: React + TypeScript + Vite** | Matches the official Tauri scaffold, keeps the UI in familiar React, and gives safer IPC/data-shape contracts with TypeScript. Tailwind remains a later styling add-on. |
 | D3 | Backend language | Rust · Go sidecar · Node sidecar | ✅ **Decided: Rust inside Tauri** | Use Tauri's native Rust host only. No Node/Go sidecar and no Rust web framework. Add crates only when forced by a feature: `serde` for real IPC payloads, `reqwest` for provider HTTP, SQLite crate at D6, and `thiserror` only if string errors become messy. |
-| D4 | Plugin runtime | QuickJS sandbox · WASM · native Rust modules · subprocess | Leaning: **QuickJS** | Best learning/product fit for provider `.js` plugins with a controlled `ctx.host` API. |
+| D4 | Plugin runtime | QuickJS sandbox · WASM · native Rust modules · subprocess | ✅ **Decided: QuickJS via `rquickjs`** | Best learning/product fit for provider `.js` plugins with a controlled `ctx.host` API; the Windows build spike passed in Phase 2. |
 | D5 | State management | Zustand · Redux · Context · Jotai | Leaning: **Zustand** | Likely enough for small multi-window/shared UI state without Redux ceremony. |
 | D6 | Storage | SQLite · JSON files · sled | Leaning: **SQLite** | Local history/snapshots/querying are easier and more durable in a small embedded DB. |
 | D7 | Secret storage | Windows Credential Manager · encrypted file · OS keyring crate | Leaning: **Credential Manager** | Secrets should not touch plaintext files, React state, logs, or SQLite. |
@@ -120,9 +120,10 @@ Ponytail scope: prove the desktop shell first, then add tray behavior. No settin
 
 ## Phase 2 — Plugin host prototype
 
-- Define `ctx.host`.
-- Run a trivial provider plugin.
-- Enforce host/guest boundaries.
+- [x] Define the first tiny host/provider contract in Rust.
+- [x] Add `rquickjs` and verify it builds on Windows.
+- [x] Run a trivial JavaScript provider through an injected `ctx.host` boundary in a unit test.
+- [x] Enforce tighter host/guest boundaries before real providers: timeout, memory limit, stack limit, and output validation.
 
 ## Phase 3 — First real provider
 
