@@ -102,6 +102,7 @@ Jane Baraniewski's `openusage` is only a reference for terminal-first reporting 
 - [x] Install/verify Rust prerequisites on Windows. Rust/Cargo worked for Phase 1; Visual Studio Build Tools not installed yet and deferred until a native build/link failure actually requires them.
 - [x] Run first Tauri desktop dev check on Windows.
 - [x] Decide D3 backend language: Rust inside Tauri, no sidecar/framework.
+- [x] Switch primary dev/test workflow to Windows clone at `C:\Users\rupes\Documents\InfUsage`; WSL is secondary/reference only.
 
 ## Phase 1 — Tray shell
 
@@ -113,6 +114,8 @@ Ponytail scope: prove the desktop shell first, then add tray behavior. No settin
 - [x] Keep tray logic in Rust.
 - [x] Windows checkpoint passed: `npm run tauri dev` showed tray icon, left-click toggled the window, close hid the window, and Quit exited the app.
 - [x] Replace starter placeholder with minimal static tray-panel UI and provider placeholders.
+- [x] Windows popup UI checkpoint passed: latest branch pulled on Windows and static provider panel renders correctly.
+- [x] Add handoff doc for Windows/Codex Desktop workflow.
 
 ## Phase 2 — Plugin host prototype
 

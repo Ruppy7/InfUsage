@@ -1,6 +1,6 @@
 # Windows dev setup
 
-Use Windows for desktop/tray testing. WSL is fine for editing and frontend checks, but a Windows tray app must run as a Windows process.
+Use Windows as the primary dev environment for this project. WSL is fine for reference/editing, but a Windows tray app must run as a Windows process.
 
 ## Required tools
 
@@ -39,18 +39,26 @@ cargo -V
 
 ## Test the app
 
-Copy the project from WSL to a Windows-side folder:
+Clone/pull the repo on the Windows side:
 
 ```powershell
-mkdir C:\dev
-robocopy "\\wsl$\Ubuntu\home\ruppy\projects\InfUsage" "C:\dev\InfUsage" /MIR /XD node_modules target .git
+cd C:\Users\rupes\Documents
+git clone https://github.com/Ruppy7/InfUsage.git
+cd InfUsage
+git switch phase-1-shell
 ```
 
 Run:
 
 ```powershell
-cd C:\dev\InfUsage
 npm install
+npm run tauri dev
+```
+
+After future WSL/Codex changes are pushed:
+
+```powershell
+git pull
 npm run tauri dev
 ```
 
@@ -68,9 +76,9 @@ Verify:
 
 Running Tauri from WSL targets Linux. That tests Linux tray/window behavior, not Windows tray/window behavior.
 
-Use WSL for:
+Use WSL only for:
 
-- editing
+- reference/editing if needed
 - TypeScript checks
 - frontend-only work
 

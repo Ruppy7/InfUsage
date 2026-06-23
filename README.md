@@ -6,7 +6,9 @@ Windows-native system-tray app for tracking AI inference usage and spend.
 
 - D1 shell: Tauri v2.
 - D2 frontend: React + TypeScript + Vite.
+- D3 backend: Rust inside Tauri.
 - Scaffold: official Tauri React TypeScript template using npm.
+- Active branch: `phase-1-shell`.
 
 Core providers planned:
 
@@ -21,6 +23,16 @@ Optional/backlog:
 - DeepSeek API balance tracking
 
 ## Development
+
+Primary development should happen from the Windows clone:
+
+```powershell
+cd C:\Users\rupes\Documents\InfUsage
+git switch phase-1-shell
+git pull
+npm install
+npm run tauri dev
+```
 
 Install dependencies:
 
@@ -40,21 +52,14 @@ Run the Tauri desktop app:
 npm run tauri dev
 ```
 
-`npm run tauri dev` requires Rust/Cargo and OS-specific Tauri prerequisites. This environment currently has Node/npm but not Rust/Cargo.
+`npm run tauri dev` requires Rust/Cargo and OS-specific Tauri prerequisites.
 
 For Windows setup, see [docs/windows-dev-setup.md](docs/windows-dev-setup.md).
-
-Phase 1 tray checkpoint must be tested from Windows, not WSL:
-
-- tray icon appears
-- left-click toggles the main window
-- closing the window hides it
-- tray menu `Show` restores it
-- tray menu `Quit` exits the app
 
 ## Project docs
 
 - `PLAN.md` — scope, phases, and decision log.
+- `docs/handoff.md` — current branch/status/testing handoff.
 - `AGENTS.md` — collaboration rules for AI agents.
 - `memory/` — condensed project facts.
 

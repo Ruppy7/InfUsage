@@ -24,6 +24,8 @@ Current decided stack:
 Current branch:
 
 - `phase-1-shell` for the first desktop shell/tray work.
+- Primary dev/test clone should be Windows-side: `C:\Users\rupes\Documents\InfUsage`.
+- WSL clone is secondary/reference; Windows is source of truth for tray, Credential Manager, process discovery, and packaging behavior.
 
 Phase 1 current shell:
 
@@ -33,5 +35,6 @@ Phase 1 current shell:
 - Tray menu has Show and Quit.
 - Window close hides instead of exiting.
 - Static popup UI shows the four core providers as not connected.
+- Windows popup UI checkpoint passed after pulling latest `phase-1-shell`.
 - Windows Phase 1 checkpoint passed with `npm run tauri dev`.
 - Visual Studio Build Tools were not installed for the checkpoint; defer until a native build/link failure requires them.
