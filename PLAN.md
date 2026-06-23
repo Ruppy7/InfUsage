@@ -102,7 +102,7 @@ Jane Baraniewski's `openusage` is only a reference for terminal-first reporting 
 - [x] Install/verify Rust prerequisites on Windows. Rust/Cargo worked for Phase 1; Visual Studio Build Tools not installed yet and deferred until a native build/link failure actually requires them.
 - [x] Run first Tauri desktop dev check on Windows.
 - [x] Decide D3 backend language: Rust inside Tauri, no sidecar/framework.
-- [x] Switch primary dev/test workflow to Windows clone at `C:\Users\rupes\Documents\InfUsage`; WSL is secondary/reference only.
+- [x] Switch dev/test workflow to native Windows at `C:\Users\rupes\Documents\InfUsage`.
 
 ## Phase 1 — Tray shell
 

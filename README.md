@@ -24,12 +24,11 @@ Optional/backlog:
 
 ## Development
 
-Primary development should happen from the Windows clone:
+Run from the project folder:
 
 ```powershell
 cd C:\Users\rupes\Documents\InfUsage
 git switch phase-1-shell
-git pull
 npm install
 npm run tauri dev
 ```
@@ -59,7 +58,7 @@ For Windows setup, see [docs/windows-dev-setup.md](docs/windows-dev-setup.md).
 ## Project docs
 
 - `PLAN.md` — scope, phases, and decision log.
-- `docs/handoff.md` — current branch/status/testing handoff.
+- `docs/handoff.md` — current branch/status handoff.
 - `AGENTS.md` — collaboration rules for AI agents.
 - `memory/` — condensed project facts.
 

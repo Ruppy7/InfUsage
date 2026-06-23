@@ -24,8 +24,7 @@ Current decided stack:
 Current branch:
 
 - `phase-1-shell` for the first desktop shell/tray work.
-- Primary dev/test clone should be Windows-side: `C:\Users\rupes\Documents\InfUsage`.
-- WSL clone is secondary/reference; Windows is source of truth for tray, Credential Manager, process discovery, and packaging behavior.
+- Dev/test should happen natively on Windows at `C:\Users\rupes\Documents\InfUsage`.
 
 Phase 1 current shell:
 

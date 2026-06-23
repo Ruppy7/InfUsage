@@ -1,6 +1,6 @@
 # Windows dev setup
 
-Use Windows as the primary dev environment for this project. WSL is fine for reference/editing, but a Windows tray app must run as a Windows process.
+Use Windows as the dev environment for this project. InfUsage is a Windows-native tray app.
 
 ## Required tools
 
@@ -37,28 +37,14 @@ rustc -V
 cargo -V
 ```
 
-## Test the app
+## Run the app
 
-Clone/pull the repo on the Windows side:
+From the project folder:
 
 ```powershell
-cd C:\Users\rupes\Documents
-git clone https://github.com/Ruppy7/InfUsage.git
-cd InfUsage
+cd C:\Users\rupes\Documents\InfUsage
 git switch phase-1-shell
-```
-
-Run:
-
-```powershell
 npm install
-npm run tauri dev
-```
-
-After future WSL/Codex changes are pushed:
-
-```powershell
-git pull
 npm run tauri dev
 ```
 
@@ -71,20 +57,3 @@ Verify:
 - closing the window hides it
 - tray menu `Show` restores it
 - tray menu `Quit` exits
-
-## Why not WSL for tray testing?
-
-Running Tauri from WSL targets Linux. That tests Linux tray/window behavior, not Windows tray/window behavior.
-
-Use WSL only for:
-
-- reference/editing if needed
-- TypeScript checks
-- frontend-only work
-
-Use Windows for:
-
-- tray behavior
-- Windows Credential Manager
-- Windows process discovery
-- packaging

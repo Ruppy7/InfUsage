@@ -12,19 +12,16 @@ Remote:
 https://github.com/Ruppy7/InfUsage
 ```
 
-## Recommended dev workflow
+## Dev workflow
 
-Use the Windows clone as the primary working copy:
+Work from the native Windows project folder:
 
 ```powershell
 cd C:\Users\rupes\Documents\InfUsage
 git switch phase-1-shell
-git pull
 npm install
 npm run tauri dev
 ```
-
-WSL can remain useful for quick text edits or frontend-only checks, but Windows is the source of truth for tray, Credential Manager, process discovery, and packaging behavior.
 
 ## Locked decisions
 
@@ -49,7 +46,7 @@ Passed on Windows:
 - Closing the window hides it.
 - Tray menu `Show` restores it.
 - Tray menu `Quit` exits.
-- Static provider panel renders after pulling latest `phase-1-shell`.
+- Static provider panel renders on `phase-1-shell`.
 
 Current UI:
 
@@ -78,4 +75,3 @@ Skip for now:
 - plugin runtime
 - provider integrations
 - state library
-
