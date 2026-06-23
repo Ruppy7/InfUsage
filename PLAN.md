@@ -45,7 +45,7 @@ Why npm: this environment has Node/npm installed; pnpm, yarn, Rust/Cargo are not
 |---|---|---|
 | OpenAI Codex | 🟡 Fragile | Reuse Codex credentials from `~/.codex/auth.json`; poll the undocumented ChatGPT/Codex usage endpoint. Keep tokens inside the trusted host. |
 | Anthropic Claude / Claude Code | 🟡 Fragile-works | One shared integration because usage limits are shared. Reuse Claude Code credentials from `~/.claude/.credentials.json`, combine endpoint usage with local JSONL where useful. |
-| OpenCode Go | 🟡 Fragile-feasible | Embedded OpenCode login; authenticated workspace `/go` page; extract server-rendered `rollingUsage`, `weeklyUsage`, `monthlyUsage`, `resetInSec`, `usagePercent`, and `useBalance`. Backlog: contribute a read-only usage API upstream. |
+| OpenCode Go | 🟡 Fragile-feasible | App-owned OpenCode browser session; call authenticated console SolidStart RPC for `lite.subscription.get` / Go quota fields (`rollingUsage`, `weeklyUsage`, `monthlyUsage`, `resetInSec`, `usagePercent`, `useBalance`). Avoid visible DOM/page-text parsing. Backlog: contribute a read-only usage API upstream. |
 | Antigravity (AGY) | 🟡 Fragile-feasible | Discover running AGY/Antigravity language-server local port and CSRF token; call loopback `GetUserStatus`; cache last successful quota snapshot and mark stale when closed. |
 | Xiaomi MiMo Token Plan Lite | ⚪ Backlog optional | Public MiMo API access exists, but Token Plan quota tracking is not publicly documented. Dashboard inspection found `/tokenPlan/detail` and `/tokenPlan/usage`; response shape, reset semantics, and `tp-…` key read access remain unverified. |
 | DeepSeek API balance | 🟢 Solid optional | User-supplied key stored in Windows Credential Manager; poll documented `/user/balance`; show total/granted/topped-up balances and availability. Do not label balance deltas as exact spend. |
@@ -64,6 +64,7 @@ Why npm: this environment has Node/npm installed; pnpm, yarn, Rust/Cargo are not
 ## Product and upstream backlog
 
 - [ ] OpenCode Go read-only usage API: propose a small authenticated JSON endpoint around the existing subscription usage query.
+- [ ] OpenCode Go app-owned browser session: store an isolated OpenCode console session in the Tauri app, then call authenticated `/_server` RPCs instead of scraping visible page text.
 - [ ] Antigravity always-available mode: evaluate only if stale-cache behavior is not enough.
 - [ ] Xiaomi MiMo Token Plan Lite: revisit after core providers; capture sanitized `/tokenPlan/detail` and `/tokenPlan/usage` responses and test `tp-…` authorization.
 - [ ] DeepSeek detailed usage: revisit only if DeepSeek publishes a documented usage API.
@@ -84,6 +85,7 @@ Avoid until forced:
 
 - Local HTTP API, proxy support, analytics, updater, autostart, global shortcuts, broad host capabilities, and multi-store React state.
 - Copying OpenUsage's OpenCode Go local SQLite spend logic. InfUsage should use authenticated workspace quota extraction because OpenCode Go usage is workspace/subscription scoped across keys, members, and devices.
+- Parsing OpenCode Go visible page text as the provider path. It is acceptable only as a temporary manual probe; the product path should be app-owned session + RPC or an upstream read-only API.
 
 Jane Baraniewski's `openusage` is only a reference for terminal-first reporting ideas: local history, burn-rate concepts, CLI/headless reports, and zero-config detection. Its Go daemon/TUI architecture is not part of InfUsage.
 
@@ -138,7 +140,7 @@ Ponytail scope: prove the desktop shell first, then add tray behavior. No settin
 - [x] Add a minimal Claude / Claude Code provider slice: Rust reads local Claude Code credentials, refreshes expired login once, calls the undocumented OAuth usage endpoint, and exposes only sanitized remaining-quota/reset summary JSON to the JavaScript plugin.
 - [ ] Windows checkpoint: verify Claude refresh from the tray popup against the user's local Claude Code login.
 - [x] Keep the fixed tray panel usable as provider rows grow by making the provider list scroll within the popup.
-- [ ] OpenCode Go checkpoint: authenticate the web workspace `/go` page, then extract server-rendered `rollingUsage`, `weeklyUsage`, `monthlyUsage`, `resetInSec`, `usagePercent`, and `useBalance`. Do not use local SQLite spend as the provider source.
+- [ ] OpenCode Go checkpoint: implement app-owned OpenCode browser-session auth, then call the console RPC that returns `rollingUsage`, `weeklyUsage`, `monthlyUsage`, `resetInSec`, `usagePercent`, and `useBalance`. Do not use local SQLite spend or visible DOM text as the provider source.
 - [ ] Antigravity checkpoint: start Antigravity or `agy`, then discover the local language server and call `GetUserStatus`.
 
 ## Phase 4 — Storage and history
