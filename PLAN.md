@@ -31,7 +31,7 @@ Decision → Concept → Build → Checkpoint
 | D4 | Plugin runtime | QuickJS sandbox · WASM · native Rust modules · subprocess | ✅ **Decided: QuickJS via `rquickjs`** | Best learning/product fit for provider `.js` plugins with a controlled `ctx.host` API; the Windows build spike passed in Phase 2. |
 | D5 | State management | Zustand · Redux · Context · Jotai | Leaning: **Zustand** | Likely enough for small multi-window/shared UI state without Redux ceremony. |
 | D6 | Storage | SQLite · JSON files · sled | Leaning: **SQLite** | Local history/snapshots/querying are easier and more durable in a small embedded DB. |
-| D7 | Secret storage | Windows Credential Manager · encrypted file · OS keyring crate | Leaning: **Credential Manager** | Secrets should not touch plaintext files, React state, logs, or SQLite. |
+| D7 | Secret storage | Windows Credential Manager · encrypted file · OS keyring crate | ✅ **Decided: Windows Credential Manager via `keyring`** | Keeps provider keys out of plaintext files, React state after save, logs, and SQLite while using the native Windows credential store. |
 
 ## Scaffold decision
 
@@ -127,8 +127,12 @@ Ponytail scope: prove the desktop shell first, then add tray behavior. No settin
 
 ## Phase 3 — First real provider
 
-- Implement the first core provider after selecting build order.
-- Keep credentials in the trusted host.
+- [x] Select DeepSeek balance as the first provider slice because its balance API is documented.
+- [x] Add trusted-host DeepSeek `/user/balance` HTTP/parser module.
+- [x] Add a JavaScript DeepSeek plugin that normalizes host-provided balance JSON through `ctx.host`.
+- [x] Add UI/API-key flow backed by Windows Credential Manager.
+- [x] Support one saved DeepSeek key and show only USD remaining.
+- [x] Keep credentials in the trusted host.
 
 ## Phase 4 — Storage and history
 

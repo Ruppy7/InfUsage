@@ -19,6 +19,8 @@ Current decided stack:
 - D1 shell: Tauri v2.
 - D2 frontend: React + TypeScript + Vite.
 - D3 backend: Rust inside Tauri; no sidecar/framework.
+- D4 plugin runtime: QuickJS via `rquickjs`.
+- D7 secret storage: Windows Credential Manager via `keyring`.
 - Scaffold: official `create-tauri-app` template with npm.
 
 Current branch:
@@ -45,3 +47,11 @@ Phase 2 current state:
 - `rquickjs` builds on Windows.
 - A trivial JavaScript provider runs through an injected `ctx.host` boundary in a Rust unit test.
 - The prototype runner has a timeout, memory limit, stack limit, and basic output validation.
+
+Phase 3 current state:
+
+- First provider slice is DeepSeek balance.
+- Rust owns the documented `/user/balance` HTTP/parser path.
+- The DeepSeek JavaScript plugin normalizes host-provided balance JSON through `ctx.host`.
+- DeepSeek API keys are saved through Rust into Windows Credential Manager.
+- The popup can save one DeepSeek key, delete it to replace it, refresh balance, and render only USD remaining.

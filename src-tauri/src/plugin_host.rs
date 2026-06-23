@@ -1,4 +1,5 @@
 use rquickjs::{prelude::Func, Array, Context, Object, Runtime};
+use serde::Serialize;
 use std::time::{Duration, Instant};
 
 const PLUGIN_TIMEOUT: Duration = Duration::from_millis(250);
@@ -6,13 +7,13 @@ const PLUGIN_MEMORY_LIMIT_BYTES: usize = 4 * 1024 * 1024;
 const PLUGIN_STACK_LIMIT_BYTES: usize = 256 * 1024;
 const MAX_LINES: usize = 16;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct ProviderSnapshot {
     pub provider_id: String,
     pub lines: Vec<MetricLine>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct MetricLine {
     pub label: String,
     pub value: String,
@@ -20,6 +21,7 @@ pub struct MetricLine {
 
 pub trait Host {
     fn app_name(&self) -> &'static str;
+    fn deepseek_balance_json(&self) -> String;
 }
 
 pub struct InfUsageHost;
@@ -27,6 +29,10 @@ pub struct InfUsageHost;
 impl Host for InfUsageHost {
     fn app_name(&self) -> &'static str {
         "InfUsage"
+    }
+
+    fn deepseek_balance_json(&self) -> String {
+        r#"{"is_available":false,"balance_infos":[]}"#.to_string()
     }
 }
 
@@ -36,6 +42,25 @@ function probe(ctx) {
     providerId: "demo",
     lines: [
       { label: "Host", value: ctx.host.appName() }
+    ]
+  };
+}
+"#;
+
+const DEEPSEEK_PROVIDER: &str = r#"
+function probe(ctx) {
+  const balance = JSON.parse(ctx.host.deepseekBalanceJson());
+  const usd = (balance.balance_infos ?? []).find(
+    (info) => String(info.currency).toUpperCase() === "USD"
+  );
+
+  return {
+    providerId: "deepseek",
+    lines: [
+      {
+        label: "USD remaining",
+        value: usd ? usd.total_balance : "0.00"
+      }
     ]
   };
 }
@@ -68,6 +93,10 @@ pub fn run_demo_provider(host: &impl Host) -> Result<ProviderSnapshot, PluginRun
     run_provider(DEMO_PROVIDER, host)
 }
 
+pub fn run_deepseek_provider(host: &impl Host) -> Result<ProviderSnapshot, PluginRunError> {
+    run_provider(DEEPSEEK_PROVIDER, host)
+}
+
 pub fn run_provider(source: &str, host: &impl Host) -> Result<ProviderSnapshot, PluginRunError> {
     let runtime = Runtime::new()?;
     runtime.set_memory_limit(PLUGIN_MEMORY_LIMIT_BYTES);
@@ -80,10 +109,15 @@ pub fn run_provider(source: &str, host: &impl Host) -> Result<ProviderSnapshot, 
 
     let context = Context::full(&runtime)?;
     let app_name = host.app_name().to_string();
+    let deepseek_balance_json = host.deepseek_balance_json();
 
     context.with(|ctx| -> Result<ProviderSnapshot, PluginRunError> {
         let host = Object::new(ctx.clone())?;
         host.set("appName", Func::new(move || app_name.clone()))?;
+        host.set(
+            "deepseekBalanceJson",
+            Func::new(move || deepseek_balance_json.clone()),
+        )?;
 
         let plugin_context = Object::new(ctx.clone())?;
         plugin_context.set("host", host)?;
@@ -131,6 +165,20 @@ pub fn run_provider(source: &str, host: &impl Host) -> Result<ProviderSnapshot, 
 mod tests {
     use super::*;
 
+    struct FakeHost {
+        deepseek_balance_json: String,
+    }
+
+    impl Host for FakeHost {
+        fn app_name(&self) -> &'static str {
+            "InfUsage"
+        }
+
+        fn deepseek_balance_json(&self) -> String {
+            self.deepseek_balance_json.clone()
+        }
+    }
+
     #[test]
     fn demo_provider_can_only_read_through_host() {
         let snapshot = run_demo_provider(&InfUsageHost).expect("demo provider should run");
@@ -175,5 +223,38 @@ mod tests {
         .expect_err("runaway plugin should fail");
 
         assert!(matches!(error, PluginRunError::Runtime(_)));
+    }
+
+    #[test]
+    fn deepseek_provider_normalizes_balance_lines() {
+        let host = FakeHost {
+            deepseek_balance_json: r#"
+            {
+              "is_available": true,
+              "balance_infos": [
+                {
+                  "currency": "USD",
+                  "total_balance": "12.50",
+                  "granted_balance": "2.50",
+                  "topped_up_balance": "10.00"
+                }
+              ]
+            }
+            "#
+            .to_string(),
+        };
+
+        let snapshot = run_deepseek_provider(&host).expect("DeepSeek plugin should run");
+
+        assert_eq!(
+            snapshot,
+            ProviderSnapshot {
+                provider_id: "deepseek".to_string(),
+                lines: vec![MetricLine {
+                    label: "USD remaining".to_string(),
+                    value: "12.50".to_string(),
+                }],
+            }
+        );
     }
 }
