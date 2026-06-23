@@ -112,6 +112,7 @@ Ponytail scope: prove the desktop shell first, then add tray behavior. No settin
 - [x] Add tray icon with left-click toggle and Show/Quit menu.
 - [x] Keep tray logic in Rust.
 - [x] Windows checkpoint passed: `npm run tauri dev` showed tray icon, left-click toggled the window, close hid the window, and Quit exited the app.
+- [x] Replace starter placeholder with minimal static tray-panel UI and provider placeholders.
 
 ## Phase 2 — Plugin host prototype
 

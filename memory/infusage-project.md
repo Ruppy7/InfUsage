@@ -32,5 +32,6 @@ Phase 1 current shell:
 - Left-click toggles the main window.
 - Tray menu has Show and Quit.
 - Window close hides instead of exiting.
+- Static popup UI shows the four core providers as not connected.
 - Windows Phase 1 checkpoint passed with `npm run tauri dev`.
 - Visual Studio Build Tools were not installed for the checkpoint; defer until a native build/link failure requires them.
