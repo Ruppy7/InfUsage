@@ -144,6 +144,11 @@ button:disabled {
   font-weight: 600;
 }
 
+.updated-at {
+  font-size: 0.75rem;
+  padding: 0 0.85rem 0.75rem;
+}
+
 footer {
   font-size: 0.82rem;
   justify-content: center;

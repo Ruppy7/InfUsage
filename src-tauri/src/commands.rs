@@ -2,6 +2,7 @@ use crate::{
     plugin_host,
     providers::{claude, codex, deepseek},
     secrets,
+    snapshot_store::{self, SavedSnapshot},
 };
 
 struct DeepSeekHost {
@@ -102,7 +103,7 @@ pub fn delete_deepseek_api_key(slot: u8) -> Result<Vec<secrets::DeepSeekKeySlot>
 }
 
 #[tauri::command]
-pub fn refresh_deepseek() -> Result<plugin_host::ProviderSnapshot, String> {
+pub fn refresh_deepseek(app: tauri::AppHandle) -> Result<plugin_host::ProviderSnapshot, String> {
     let api_keys = secrets::load_deepseek_api_keys();
 
     if api_keys.is_empty() {
@@ -123,20 +124,33 @@ pub fn refresh_deepseek() -> Result<plugin_host::ProviderSnapshot, String> {
     let balance_json =
         deepseek::usd_balance_json(usd_remaining).map_err(|error| error.to_string())?;
 
-    plugin_host::run_deepseek_provider(&DeepSeekHost { balance_json })
-        .map_err(|error| error.to_string())
+    let snapshot = plugin_host::run_deepseek_provider(&DeepSeekHost { balance_json })
+        .map_err(|error| error.to_string())?;
+    snapshot_store::save_latest(&app, &snapshot).map_err(|error| error.to_string())?;
+    Ok(snapshot)
 }
 
 #[tauri::command]
-pub fn refresh_codex() -> Result<plugin_host::ProviderSnapshot, String> {
+pub fn refresh_codex(app: tauri::AppHandle) -> Result<plugin_host::ProviderSnapshot, String> {
     let usage_json = codex::fetch_usage_summary_json().map_err(|error| error.to_string())?;
 
-    plugin_host::run_codex_provider(&CodexHost { usage_json }).map_err(|error| error.to_string())
+    let snapshot = plugin_host::run_codex_provider(&CodexHost { usage_json })
+        .map_err(|error| error.to_string())?;
+    snapshot_store::save_latest(&app, &snapshot).map_err(|error| error.to_string())?;
+    Ok(snapshot)
 }
 
 #[tauri::command]
-pub fn refresh_claude() -> Result<plugin_host::ProviderSnapshot, String> {
+pub fn refresh_claude(app: tauri::AppHandle) -> Result<plugin_host::ProviderSnapshot, String> {
     let usage_json = claude::fetch_usage_summary_json().map_err(|error| error.to_string())?;
 
-    plugin_host::run_claude_provider(&ClaudeHost { usage_json }).map_err(|error| error.to_string())
+    let snapshot = plugin_host::run_claude_provider(&ClaudeHost { usage_json })
+        .map_err(|error| error.to_string())?;
+    snapshot_store::save_latest(&app, &snapshot).map_err(|error| error.to_string())?;
+    Ok(snapshot)
+}
+
+#[tauri::command]
+pub fn list_saved_snapshots(app: tauri::AppHandle) -> Result<Vec<SavedSnapshot>, String> {
+    snapshot_store::load_all(&app).map_err(|error| error.to_string())
 }

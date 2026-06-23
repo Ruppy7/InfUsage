@@ -12,6 +12,12 @@ type ProviderSnapshot = {
   lines: MetricLine[];
 };
 
+type SavedSnapshot = {
+  provider_id: string;
+  captured_at: number;
+  snapshot: ProviderSnapshot;
+};
+
 type DeepSeekKeySlot = {
   id: number;
   has_key: boolean;
@@ -26,6 +32,7 @@ function App() {
   const [claudeSnapshot, setClaudeSnapshot] = useState<ProviderSnapshot | null>(null);
   const [codexSnapshot, setCodexSnapshot] = useState<ProviderSnapshot | null>(null);
   const [deepseekSnapshot, setDeepseekSnapshot] = useState<ProviderSnapshot | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Record<string, number>>({});
   const [status, setStatus] = useState("Idle");
   const [error, setError] = useState("");
 
@@ -43,7 +50,49 @@ function App() {
         setIsAddingKey(slots.every((slot) => !slot.has_key));
       })
       .catch(() => setKeySlots([]));
+
+    invoke<SavedSnapshot[]>("list_saved_snapshots")
+      .then((savedSnapshots) => {
+        const updatedAt: Record<string, number> = {};
+
+        for (const saved of savedSnapshots) {
+          updatedAt[saved.provider_id] = saved.captured_at;
+
+          if (saved.provider_id === "claude") {
+            setClaudeSnapshot(saved.snapshot);
+          } else if (saved.provider_id === "codex") {
+            setCodexSnapshot(saved.snapshot);
+          } else if (saved.provider_id === "deepseek") {
+            setDeepseekSnapshot(saved.snapshot);
+          }
+        }
+
+        setLastUpdatedAt(updatedAt);
+      })
+      .catch(() => {});
   }, []);
+
+  function markUpdated(snapshot: ProviderSnapshot) {
+    setLastUpdatedAt((current) => ({
+      ...current,
+      [snapshot.provider_id]: Math.floor(Date.now() / 1000),
+    }));
+  }
+
+  function updatedLabel(providerId: string) {
+    const capturedAt = lastUpdatedAt[providerId];
+
+    if (!capturedAt) {
+      return "";
+    }
+
+    const date = new Date(capturedAt * 1000);
+    const pad = (value: number) => String(value).padStart(2, "0");
+
+    return `Updated ${pad(date.getDate())}-${pad(date.getMonth() + 1)} ${pad(
+      date.getHours(),
+    )}:${pad(date.getMinutes())}`;
+  }
 
   async function saveKey() {
     setError("");
@@ -81,6 +130,7 @@ function App() {
     try {
       const nextSnapshot = await invoke<ProviderSnapshot>("refresh_deepseek");
       setDeepseekSnapshot(nextSnapshot);
+      markUpdated(nextSnapshot);
       setStatus("Updated");
     } catch (caught) {
       setStatus("Error");
@@ -94,6 +144,7 @@ function App() {
     try {
       const nextSnapshot = await invoke<ProviderSnapshot>("refresh_codex");
       setCodexSnapshot(nextSnapshot);
+      markUpdated(nextSnapshot);
       setStatus("Updated");
     } catch (caught) {
       setStatus("Error");
@@ -107,6 +158,7 @@ function App() {
     try {
       const nextSnapshot = await invoke<ProviderSnapshot>("refresh_claude");
       setClaudeSnapshot(nextSnapshot);
+      markUpdated(nextSnapshot);
       setStatus("Updated");
     } catch (caught) {
       setStatus("Error");
@@ -145,6 +197,7 @@ function App() {
               <strong>{line.value}</strong>
             </div>
           ))}
+          {codexSnapshot && <p className="updated-at">{updatedLabel("codex")}</p>}
         </div>
 
         <div className="provider-block">
@@ -167,6 +220,7 @@ function App() {
               <strong>{line.value}</strong>
             </div>
           ))}
+          {claudeSnapshot && <p className="updated-at">{updatedLabel("claude")}</p>}
         </div>
 
         <div className="provider-block">
@@ -229,6 +283,7 @@ function App() {
               <strong>{line.value}</strong>
             </div>
           ))}
+          {deepseekSnapshot && <p className="updated-at">{updatedLabel("deepseek")}</p>}
         </div>
 
         {placeholders.map((provider) => (

@@ -1,5 +1,5 @@
 use rquickjs::{prelude::Func, Array, Context, Object, Runtime};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 
 const PLUGIN_TIMEOUT: Duration = Duration::from_millis(250);
@@ -7,13 +7,13 @@ const PLUGIN_MEMORY_LIMIT_BYTES: usize = 4 * 1024 * 1024;
 const PLUGIN_STACK_LIMIT_BYTES: usize = 256 * 1024;
 const MAX_LINES: usize = 16;
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct ProviderSnapshot {
     pub provider_id: String,
     pub lines: Vec<MetricLine>,
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct MetricLine {
     pub label: String,
     pub value: String,

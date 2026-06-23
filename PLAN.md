@@ -30,7 +30,7 @@ Decision → Concept → Build → Checkpoint
 | D3 | Backend language | Rust · Go sidecar · Node sidecar | ✅ **Decided: Rust inside Tauri** | Use Tauri's native Rust host only. No Node/Go sidecar and no Rust web framework. Add crates only when forced by a feature: `serde` for real IPC payloads, `reqwest` for provider HTTP, SQLite crate at D6, and `thiserror` only if string errors become messy. |
 | D4 | Plugin runtime | QuickJS sandbox · WASM · native Rust modules · subprocess | ✅ **Decided: QuickJS via `rquickjs`** | Best learning/product fit for provider `.js` plugins with a controlled `ctx.host` API; the Windows build spike passed in Phase 2. |
 | D5 | State management | Zustand · Redux · Context · Jotai | Leaning: **Zustand** | Likely enough for small multi-window/shared UI state without Redux ceremony. |
-| D6 | Storage | SQLite · JSON files · sled | Leaning: **SQLite** | Local history/snapshots/querying are easier and more durable in a small embedded DB. |
+| D6 | Storage | JSON file · SQLite · sled | ✅ **Decided: JSON file for latest snapshots** | Ponytail first step: persist the latest provider snapshots with existing `serde_json` and no new database dependency. Revisit SQLite only when real history queries/detail views need it. |
 | D7 | Secret storage | Windows Credential Manager · encrypted file · OS keyring crate | ✅ **Decided: Windows Credential Manager via `keyring`** | Keeps provider keys out of plaintext files, React state after save, logs, and SQLite while using the native Windows credential store. |
 
 ## Scaffold decision
@@ -143,7 +143,9 @@ Ponytail scope: prove the desktop shell first, then add tray behavior. No settin
 
 ## Phase 4 — Storage and history
 
-- Persist provider snapshots.
+- [x] Persist latest provider snapshots to an app-data JSON file after successful refresh.
+- [x] Restore saved Codex, Claude, and DeepSeek snapshots on tray startup.
+- [x] Show a compact last-updated timestamp for restored/refreshed provider rows.
 - Add basic history/detail views.
 
 ## Phase 5 — More providers

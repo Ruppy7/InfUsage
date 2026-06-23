@@ -2,6 +2,7 @@ mod commands;
 mod plugin_host;
 pub mod providers;
 mod secrets;
+mod snapshot_store;
 mod tray;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -16,6 +17,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::list_saved_snapshots,
             commands::refresh_claude,
             commands::refresh_codex,
             commands::save_deepseek_api_key,
