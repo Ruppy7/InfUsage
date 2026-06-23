@@ -27,7 +27,7 @@ Decision → Concept → Build → Checkpoint
 |---|---|---|---|---|
 | D1 | Desktop shell | Tauri v2 · Electron · WinUI/WPF · Flutter | ✅ **Decided: Tauri v2** | Best fit for an always-on tray utility: small WebView shell, Rust-native host, tray APIs, and a capability/security model that fits the host/UI/plugin boundary. |
 | D2 | Frontend | React+TS · Svelte · SolidJS · plain TS | ✅ **Decided: React + TypeScript + Vite** | Matches the official Tauri scaffold, keeps the UI in familiar React, and gives safer IPC/data-shape contracts with TypeScript. Tailwind remains a later styling add-on. |
-| D3 | Backend language | Rust · Go sidecar · Node sidecar | Leaning: **Rust** | Tauri-native and appropriate for a trusted host that handles tray, credentials, HTTP, SQLite, and plugin execution. Still to be discussed before deeper backend code. |
+| D3 | Backend language | Rust · Go sidecar · Node sidecar | ✅ **Decided: Rust inside Tauri** | Use Tauri's native Rust host only. No Node/Go sidecar and no Rust web framework. Add crates only when forced by a feature: `serde` for real IPC payloads, `reqwest` for provider HTTP, SQLite crate at D6, and `thiserror` only if string errors become messy. |
 | D4 | Plugin runtime | QuickJS sandbox · WASM · native Rust modules · subprocess | Leaning: **QuickJS** | Best learning/product fit for provider `.js` plugins with a controlled `ctx.host` API. |
 | D5 | State management | Zustand · Redux · Context · Jotai | Leaning: **Zustand** | Likely enough for small multi-window/shared UI state without Redux ceremony. |
 | D6 | Storage | SQLite · JSON files · sled | Leaning: **SQLite** | Local history/snapshots/querying are easier and more durable in a small embedded DB. |
@@ -82,7 +82,7 @@ Why npm: this environment has Node/npm installed; pnpm, yarn, Rust/Cargo are not
 - [x] Run frontend TypeScript/Vite build check.
 - [ ] Install/verify Rust prerequisites. Current environment has Node/npm but no `cargo`/`rustc`.
 - [ ] Run first Tauri desktop dev/build check after Rust prerequisites are installed.
-- [ ] Decide D3 backend language before writing meaningful backend logic.
+- [x] Decide D3 backend language: Rust inside Tauri, no sidecar/framework.
 
 ## Phase 1 — Tray shell
 
