@@ -24,11 +24,12 @@ Current decided stack:
 - D6 storage: JSON file for latest snapshots only; usage history UI was removed as clutter and SQLite stays deferred until real query needs exist.
 - D8 OpenCode quota auth: dev-only cookie paste path stores workspace id + cookie in Windows Credential Manager; local `auth.json` key is inference-only, final quota UX should become app-owned browser/session if kept.
 - D9 OpenCode primary data: local read-only `opencode.db` spend/tokens, with Windows, Unix/WSL, `wsl.exe --cd ~ wslpath -w ...`, and `OPENCODE_DB` path discovery.
+- D10 tray visual baseline: compact undecorated `400x540` tray popup with custom draggable header, compact cards, status chips, icon buttons, segmented OpenCode Spend/Quota control, and `lucide-react`.
 - Scaffold: official `create-tauri-app` template with npm.
 
 Current branch:
 
-- `codex/phase-3-providers` for current provider work.
+- `codex/tray-design-refresh` for current Phase 6 tray design polish.
 - Dev/test should happen natively on Windows at `C:\Users\rupes\Documents\InfUsage`.
 
 Phase 1 current shell:
@@ -40,7 +41,7 @@ Phase 1 current shell:
 - Window close hides instead of exiting.
 - Static popup UI shows the four core providers as not connected.
 - Main window is a fixed-size tray popup and positions near the bottom-right when shown.
-- Windows popup UI checkpoint passed after pulling latest `phase-1-shell`.
+- Windows popup UI checkpoint passed during Phase 1.
 - Windows Phase 1 checkpoint passed with `npm run tauri dev`.
 - Visual Studio Build Tools were not installed for the checkpoint; defer until a native build/link failure requires them.
 
@@ -61,3 +62,9 @@ Phase 3 current state:
 - Codex provider slice is in progress: Rust reads local Codex `auth.json`, refreshes expired login once, calls the undocumented usage endpoint, and exposes only plan/session remaining/session reset/weekly remaining/weekly reset/credits summary JSON to the plugin/UI.
 - Claude provider slice is in progress: Rust reads local Claude Code `.credentials.json`, refreshes expired login once, calls the undocumented OAuth usage endpoint, and exposes only plan/session remaining/session reset/weekly remaining/weekly reset summary JSON to the plugin/UI.
 - OpenCode Go provider slice is in progress: Rust reads local `opencode.db` spend/tokens read-only, filtered to `session.model` JSON `providerID = "opencode-go"`. Dev-only quota path stores a pasted OpenCode console cookie in Windows Credential Manager, fetches `/workspace/{workspaceId}/go`, and exposes sanitized quota lines. User's current OpenCode DB is in WSL Ubuntu at `/home/ruppy/.local/share/opencode/opencode.db`.
+
+Phase 6 current state:
+
+- Initial tray design refresh is implemented and pushed on `codex/tray-design-refresh`.
+- The app uses `lucide-react` icons, a custom undecorated tray panel, compact provider cards, status chips, and an OpenCode Spend/Quota segmented control.
+- Next polish should focus on tray icon assets, typography/color refinement, provider row hierarchy, and empty/error/stale states.

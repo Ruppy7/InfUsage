@@ -34,6 +34,7 @@ Decision → Concept → Build → Checkpoint
 | D7 | Secret storage | Windows Credential Manager · encrypted file · OS keyring crate | ✅ **Decided: Windows Credential Manager via `keyring`** | Keeps provider keys out of plaintext files, React state after save, logs, and SQLite while using the native Windows credential store. |
 | D8 | OpenCode Go quota auth | Reuse local `auth.json` key · app-owned console session cookie · dev cookie paste | Dev-only: **cookie paste validation path** | Verified 2026-06-24: the local `~/.local/share/opencode/auth.json` `opencode-go` entry is a static `sk-…` **inference** key for `opencode.ai/zen/(go/)v1` only — usage/quota fields appear nowhere in the CLI binary. Usage quota is served by the console, GET `https://opencode.ai/workspace/{workspaceId}/go` (text/html, SolidStart/Seroval-serialized), authenticated by **session cookie**. Managed-webview login was prototyped but rejected because it forces a fresh in-app Google OAuth. Current implementation has a dev-only cookie paste path stored in Windows Credential Manager to validate quota parsing; long-term UX should still be app-owned session handling or upstream read-only API. |
 | D9 | OpenCode Go primary data | Console quota (cookie) · local SQLite spend | ✅ **Decided: local SQLite spend is primary** | Every other OpenCode tracker (openusage.sh, gaboe/opencode-usage, PyPI opencode-usage, robinebers/openusage) reads the local `opencode.db` with zero auth; none scrape console quota. Verified our `session` table exposes `cost` + `tokens_*` (ms timestamps) and `model` JSON with `providerID`. InfUsage reads `opencode.db` read-only for per-window spend/tokens, filtered to `providerID = "opencode-go"`, checking Windows `%LOCALAPPDATA%`, Unix/WSL `~/.local/share`, WSL `wslpath`, and an `OPENCODE_DB` override. Forces a SQLite reader → added `rusqlite` (bundled) per D3's "add crates only when a feature requires it." Caveat: local spend is this-device/this-machine, not subscription-wide; quota remains a later app-owned browser/session problem. |
+| D10 | Tray visual baseline | Native window chrome · custom undecorated panel · full design system | ✅ **Decided: custom compact tray panel** | Current Phase 6 baseline is a fixed `400x540` undecorated popup with a custom draggable header, compact provider cards, status chips, icon buttons, and `lucide-react`. Keep this simple until the remaining provider, error, and stale states are stable. |
 
 ## Scaffold decision
 
@@ -163,6 +164,7 @@ Ponytail scope: prove the desktop shell first, then add tray behavior. No settin
 
 ## Phase 6 — Polish and packaging
 
+- [x] Initial tray visual refresh: custom undecorated `400x540` popup, draggable header, compact cards, status chips, icon buttons, segmented OpenCode Spend/Quota control, and tighter spacing/typography.
 - Tray icon visualization.
 - Error/stale states.
 - Windows packaging.

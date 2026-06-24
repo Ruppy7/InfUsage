@@ -43,12 +43,12 @@ From the project folder:
 
 ```powershell
 cd C:\Users\rupes\Documents\InfUsage
-git switch phase-1-shell
+git switch codex/tray-design-refresh
 npm install
 npm run tauri dev
 ```
 
-## Phase 1 checkpoint
+## Tray checkpoint
 
 Verify:
 
@@ -57,3 +57,4 @@ Verify:
 - closing the window hides it
 - tray menu `Show` restores it
 - tray menu `Quit` exits
+- popup positions near the bottom-right without going into the taskbar
