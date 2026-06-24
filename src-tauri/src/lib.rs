@@ -26,6 +26,9 @@ pub fn run() {
             commands::list_deepseek_api_keys,
             commands::delete_deepseek_api_key,
             commands::refresh_deepseek,
+            commands::opencode_quota_session_status,
+            commands::save_opencode_quota_session,
+            commands::disconnect_opencode_quota,
             commands::refresh_opencode,
         ])
         .run(tauri::generate_context!())

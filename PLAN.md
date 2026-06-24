@@ -32,7 +32,7 @@ Decision → Concept → Build → Checkpoint
 | D5 | State management | Zustand · Redux · Context · Jotai | Leaning: **Zustand** | Likely enough for small multi-window/shared UI state without Redux ceremony. |
 | D6 | Storage | JSON file · SQLite · sled | ✅ **Decided: JSON file for snapshots/history** | Ponytail first step: persist provider snapshots and a capped recent history with existing `serde_json` and no new database dependency. Revisit SQLite only when real history queries need it. |
 | D7 | Secret storage | Windows Credential Manager · encrypted file · OS keyring crate | ✅ **Decided: Windows Credential Manager via `keyring`** | Keeps provider keys out of plaintext files, React state after save, logs, and SQLite while using the native Windows credential store. |
-| D8 | OpenCode Go quota auth | Reuse local `auth.json` key · app-owned console session cookie | Deferred: **app-owned console session only if quota is revived** | Verified 2026-06-24: the local `~/.local/share/opencode/auth.json` `opencode-go` entry is a static `sk-…` **inference** key for `opencode.ai/zen/(go/)v1` only — usage/quota fields appear nowhere in the CLI binary. Usage quota is served by the console, GET `https://opencode.ai/workspace/{workspaceId}/go` (text/html, SolidStart/Seroval-serialized), authenticated by **session cookie**. Managed-webview login was prototyped but rejected because it forces a fresh in-app Google OAuth. Cookie paste was also cut for now: it is sensitive auth material and not needed for the primary local-spend slice. |
+| D8 | OpenCode Go quota auth | Reuse local `auth.json` key · app-owned console session cookie · dev cookie paste | Dev-only: **cookie paste validation path** | Verified 2026-06-24: the local `~/.local/share/opencode/auth.json` `opencode-go` entry is a static `sk-…` **inference** key for `opencode.ai/zen/(go/)v1` only — usage/quota fields appear nowhere in the CLI binary. Usage quota is served by the console, GET `https://opencode.ai/workspace/{workspaceId}/go` (text/html, SolidStart/Seroval-serialized), authenticated by **session cookie**. Managed-webview login was prototyped but rejected because it forces a fresh in-app Google OAuth. Current implementation has a dev-only cookie paste path stored in Windows Credential Manager to validate quota parsing; long-term UX should still be app-owned session handling or upstream read-only API. |
 | D9 | OpenCode Go primary data | Console quota (cookie) · local SQLite spend | ✅ **Decided: local SQLite spend is primary** | Every other OpenCode tracker (openusage.sh, gaboe/opencode-usage, PyPI opencode-usage, robinebers/openusage) reads the local `opencode.db` with zero auth; none scrape console quota. Verified our `session` table exposes `cost` + `tokens_*` (ms timestamps) and `model` JSON with `providerID`. InfUsage reads `opencode.db` read-only for per-window spend/tokens, filtered to `providerID = "opencode-go"`, checking Windows `%LOCALAPPDATA%`, Unix/WSL `~/.local/share`, WSL `wslpath`, and an `OPENCODE_DB` override. Forces a SQLite reader → added `rusqlite` (bundled) per D3's "add crates only when a feature requires it." Caveat: local spend is this-device/this-machine, not subscription-wide; quota remains a later app-owned browser/session problem. |
 
 ## Scaffold decision
@@ -47,7 +47,7 @@ Why npm: this environment has Node/npm installed; pnpm, yarn, Rust/Cargo are not
 |---|---|---|
 | OpenAI Codex | 🟡 Fragile | Reuse Codex credentials from `~/.codex/auth.json`; poll the undocumented ChatGPT/Codex usage endpoint. Keep tokens inside the trusted host. |
 | Anthropic Claude / Claude Code | 🟡 Fragile-works | One shared integration because usage limits are shared. Reuse Claude Code credentials from `~/.claude/.credentials.json`, combine endpoint usage with local JSONL where useful. |
-| OpenCode Go | 🟡 Local spend works / quota deferred | Primary path reads `opencode.db` read-only for local spend/tokens. WSL homes are checked because the user's OpenCode runs inside WSL. Verified quota contract (2026-06-24): GET `https://opencode.ai/workspace/{workspaceId}/go` returns quota under a session cookie; keep this deferred until an app-owned browser/session flow is worth the UX cost. |
+| OpenCode Go | 🟡 Local spend works / quota dev path | Primary path reads `opencode.db` read-only for local spend/tokens. WSL homes are checked because the user's OpenCode runs inside WSL. Verified quota contract (2026-06-24): GET `https://opencode.ai/workspace/{workspaceId}/go` returns quota under a session cookie; current dev-only path stores a pasted cookie in Credential Manager, fetches the document, and exposes sanitized quota only. |
 | Antigravity (AGY) | 🟡 Fragile-feasible | Discover running AGY/Antigravity language-server local port and CSRF token; call loopback `GetUserStatus`; cache last successful quota snapshot and mark stale when closed. |
 | Xiaomi MiMo Token Plan Lite | ⚪ Backlog optional | Public MiMo API access exists, but Token Plan quota tracking is not publicly documented. Dashboard inspection found `/tokenPlan/detail` and `/tokenPlan/usage`; response shape, reset semantics, and `tp-…` key read access remain unverified. |
 | DeepSeek API balance | 🟢 Solid optional | User-supplied key stored in Windows Credential Manager; poll documented `/user/balance`; show total/granted/topped-up balances and availability. Do not label balance deltas as exact spend. |
@@ -66,7 +66,7 @@ Why npm: this environment has Node/npm installed; pnpm, yarn, Rust/Cargo are not
 ## Product and upstream backlog
 
 - [ ] OpenCode Go read-only usage API: propose a small authenticated JSON endpoint around the existing subscription usage query.
-- [ ] OpenCode Go app-owned browser session: only if subscription-wide quota becomes worth it; store an isolated OpenCode console session in the Tauri app, then call authenticated console data paths instead of asking for pasted cookies.
+- [ ] OpenCode Go app-owned browser session: replace dev cookie paste if subscription-wide quota stays useful; store an isolated OpenCode console session in the Tauri app, then call authenticated console data paths.
 - [ ] Antigravity always-available mode: evaluate only if stale-cache behavior is not enough.
 - [ ] Xiaomi MiMo Token Plan Lite: revisit after core providers; capture sanitized `/tokenPlan/detail` and `/tokenPlan/usage` responses and test `tp-…` authorization.
 - [ ] DeepSeek detailed usage: revisit only if DeepSeek publishes a documented usage API.
@@ -87,7 +87,7 @@ Avoid until forced:
 
 - Local HTTP API, proxy support, analytics, updater, autostart, global shortcuts, broad host capabilities, and multi-store React state.
 - Treating OpenCode local SQLite spend as subscription quota. It is useful local spend/tokens, not workspace-wide quota across devices, keys, and members.
-- Asking users to paste OpenCode session cookies. If quota comes back, the product path should be app-owned session handling or an upstream read-only API.
+- Shipping pasted OpenCode session cookies as final UX. Current cookie path is dev-only validation; product path should be app-owned session handling or an upstream read-only API.
 
 Jane Baraniewski's `openusage` is only a reference for terminal-first reporting ideas: local history, burn-rate concepts, CLI/headless reports, and zero-config detection. Its Go daemon/TUI architecture is not part of InfUsage.
 
@@ -142,7 +142,7 @@ Ponytail scope: prove the desktop shell first, then add tray behavior. No settin
 - [x] Add a minimal Claude / Claude Code provider slice: Rust reads local Claude Code credentials, refreshes expired login once, calls the undocumented OAuth usage endpoint, and exposes only sanitized remaining-quota/reset summary JSON to the JavaScript plugin.
 - [ ] Windows checkpoint: verify Claude refresh from the tray popup against the user's local Claude Code login.
 - [x] Keep the fixed tray panel usable as provider rows grow by making the provider list scroll within the popup.
-- [ ] OpenCode Go checkpoint: read local `opencode.db` spend/tokens read-only, including WSL paths, and defer subscription quota until an app-owned browser/session flow is worth building.
+- [ ] OpenCode Go checkpoint: read local `opencode.db` spend/tokens read-only, including WSL paths, and validate subscription quota through the dev-only Credential Manager cookie path.
 - [ ] Antigravity checkpoint: start Antigravity or `agy`, then discover the local language server and call `GetUserStatus`.
 
 ## Phase 4 — Storage and history

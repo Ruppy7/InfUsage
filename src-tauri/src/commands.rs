@@ -1,9 +1,11 @@
 use crate::{
     plugin_host,
-    providers::{claude, codex, deepseek, opencode_db},
+    providers::{claude, codex, deepseek, opencode_db, opencode_quota},
     secrets,
     snapshot_store::{self, SavedSnapshot},
 };
+
+const OPENCODE_WORKSPACE_MARKER: &str = "/workspace/";
 
 struct OpenCodeHost {
     usage_json: String,
@@ -199,16 +201,115 @@ pub fn list_snapshot_history(app: tauri::AppHandle) -> Result<Vec<SavedSnapshot>
 }
 
 #[tauri::command]
+pub fn opencode_quota_session_status() -> bool {
+    secrets::has_opencode_quota_session()
+}
+
+#[tauri::command]
+pub fn disconnect_opencode_quota() -> Result<bool, String> {
+    secrets::delete_opencode_quota_session().map_err(|error| error.to_string())?;
+    Ok(false)
+}
+
+#[tauri::command]
+pub fn save_opencode_quota_session(
+    app: tauri::AppHandle,
+    cookie: String,
+    workspace: String,
+) -> Result<plugin_host::ProviderSnapshot, String> {
+    let cookie = cookie.trim();
+    let workspace_id = workspace_id_from_input(&workspace)?;
+
+    if cookie.is_empty() {
+        return Err("OpenCode cookie must not be empty".to_string());
+    }
+
+    let session = secrets::OpenCodeQuotaSession {
+        cookie: cookie.to_string(),
+        workspace_id,
+    };
+
+    let quota_json =
+        opencode_quota::fetch_usage_summary_json(&session.cookie, &session.workspace_id)
+            .map_err(|error| error.to_string())?;
+
+    secrets::save_opencode_quota_session(&session).map_err(|error| error.to_string())?;
+    refresh_opencode_with_quota(app, Some(quota_json))
+}
+
+#[tauri::command]
 pub fn refresh_opencode(app: tauri::AppHandle) -> Result<plugin_host::ProviderSnapshot, String> {
+    let quota_json = match secrets::load_opencode_quota_session() {
+        Some(session) => Some(
+            opencode_quota::fetch_usage_summary_json(&session.cookie, &session.workspace_id)
+                .map_err(|error| error.to_string())?,
+        ),
+        None => None,
+    };
+
+    refresh_opencode_with_quota(app, quota_json)
+}
+
+fn refresh_opencode_with_quota(
+    app: tauri::AppHandle,
+    quota_json: Option<String>,
+) -> Result<plugin_host::ProviderSnapshot, String> {
     let spend_json = match opencode_db::read_spend_summary_json() {
         Ok(json) => json,
         Err(error) => return Err(error.to_string()),
     };
 
-    let usage_json = format!("{{\"spend\":{spend_json}}}");
+    let usage_json = match quota_json {
+        Some(quota_json) => format!("{{\"spend\":{spend_json},\"quota\":{quota_json}}}"),
+        None => format!("{{\"spend\":{spend_json}}}"),
+    };
 
     let snapshot = plugin_host::run_opencode_provider(&OpenCodeHost { usage_json })
         .map_err(|error| error.to_string())?;
     snapshot_store::save_latest(&app, &snapshot).map_err(|error| error.to_string())?;
     Ok(snapshot)
+}
+
+fn workspace_id_from_input(input: &str) -> Result<String, String> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return Err("OpenCode workspace URL or id must not be empty".to_string());
+    }
+
+    if trimmed.starts_with("wrk_") {
+        return Ok(trimmed.to_string());
+    }
+
+    let marker_index = trimmed
+        .find(OPENCODE_WORKSPACE_MARKER)
+        .ok_or_else(|| "OpenCode workspace must be a workspace URL or wrk_ id".to_string())?;
+    let after_marker = &trimmed[marker_index + OPENCODE_WORKSPACE_MARKER.len()..];
+    let workspace_id = after_marker
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or("")
+        .trim();
+
+    if workspace_id.starts_with("wrk_") {
+        Ok(workspace_id.to_string())
+    } else {
+        Err("OpenCode workspace id must start with wrk_".to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extracts_opencode_workspace_id() {
+        assert_eq!(
+            workspace_id_from_input("wrk_abc").unwrap(),
+            "wrk_abc".to_string()
+        );
+        assert_eq!(
+            workspace_id_from_input("https://opencode.ai/workspace/wrk_abc/go").unwrap(),
+            "wrk_abc".to_string()
+        );
+    }
 }

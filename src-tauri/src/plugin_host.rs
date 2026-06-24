@@ -161,6 +161,28 @@ function compact(count) {
   return String(count);
 }
 
+function resetText(seconds) {
+  if (seconds === null || seconds === undefined) return "";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function quotaLine(label, window) {
+  if (!window) return null;
+  const used =
+    window.usage_percent !== null && window.usage_percent !== undefined
+      ? `${window.usage_percent}% used`
+      : (window.status || "n/a");
+  const reset = window.reset_in_sec !== null && window.reset_in_sec !== undefined
+    ? ` - resets in ${resetText(window.reset_in_sec)}`
+    : "";
+  return { label, value: `${used}${reset}` };
+}
+
 function probe(ctx) {
   const data = JSON.parse(ctx.host.opencodeUsageJson());
   const lines = [];
@@ -171,6 +193,21 @@ function probe(ctx) {
     lines.push({ label: "Last 30 days", value: money(spend.cost_30d) });
     lines.push({ label: "Tokens (30d)", value: compact(spend.tokens_30d) });
     lines.push({ label: "All-time", value: money(spend.cost_all) });
+  }
+
+  const quota = data.quota;
+  if (quota) {
+    for (const [label, window] of [
+      ["Rolling", quota.rolling],
+      ["Weekly", quota.weekly],
+      ["Monthly", quota.monthly],
+    ]) {
+      const line = quotaLine(label, window);
+      if (line) lines.push(line);
+    }
+    if (quota.use_balance === true) {
+      lines.push({ label: "Mode", value: "Balance" });
+    }
   }
 
   return {
@@ -535,5 +572,46 @@ mod tests {
                 ],
             }
         );
+    }
+
+    #[test]
+    fn opencode_provider_appends_quota_when_present() {
+        let host = FakeHost {
+            opencode_usage_json: r#"
+            {
+              "spend": { "cost_7d": 0, "cost_30d": 0, "cost_all": 0, "tokens_30d": 0, "sessions_30d": 0 },
+              "quota": {
+                "use_balance": false,
+                "rolling": { "status": "ok", "reset_in_sec": 18000, "usage_percent": 0 },
+                "weekly": { "status": "ok", "reset_in_sec": 451207, "usage_percent": 2 },
+                "monthly": { "status": "ok", "reset_in_sec": 1194765, "usage_percent": 9 }
+              }
+            }
+            "#
+            .to_string(),
+            ..Default::default()
+        };
+
+        let snapshot = run_opencode_provider(&host).expect("OpenCode plugin should run");
+        let labels = snapshot
+            .lines
+            .iter()
+            .map(|line| line.label.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            labels,
+            vec![
+                "Last 7 days",
+                "Last 30 days",
+                "Tokens (30d)",
+                "All-time",
+                "Rolling",
+                "Weekly",
+                "Monthly"
+            ]
+        );
+        assert_eq!(snapshot.lines[4].value, "0% used - resets in 5h 0m");
+        assert_eq!(snapshot.lines[6].value, "9% used - resets in 13d 19h");
     }
 }

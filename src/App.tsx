@@ -33,6 +33,10 @@ function App() {
   const [codexSnapshot, setCodexSnapshot] = useState<ProviderSnapshot | null>(null);
   const [deepseekSnapshot, setDeepseekSnapshot] = useState<ProviderSnapshot | null>(null);
   const [opencodeSnapshot, setOpencodeSnapshot] = useState<ProviderSnapshot | null>(null);
+  const [opencodeQuotaConnected, setOpencodeQuotaConnected] = useState(false);
+  const [showOpencodeQuotaSetup, setShowOpencodeQuotaSetup] = useState(false);
+  const [opencodeCookie, setOpencodeCookie] = useState("");
+  const [opencodeWorkspace, setOpencodeWorkspace] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Record<string, number>>({});
   const [snapshotHistory, setSnapshotHistory] = useState<SavedSnapshot[]>([]);
   const [status, setStatus] = useState("Idle");
@@ -78,6 +82,10 @@ function App() {
     invoke<SavedSnapshot[]>("list_snapshot_history")
       .then(setSnapshotHistory)
       .catch(() => {});
+
+    invoke<boolean>("opencode_quota_session_status")
+      .then(setOpencodeQuotaConnected)
+      .catch(() => setOpencodeQuotaConnected(false));
   }, []);
 
   function markUpdated(snapshot: ProviderSnapshot, capturedAt = Math.floor(Date.now() / 1000)) {
@@ -227,6 +235,42 @@ function App() {
     }
   }
 
+  async function saveOpenCodeQuota() {
+    setError("");
+    setStatus("Saving quota");
+    try {
+      const nextSnapshot = await invoke<ProviderSnapshot>("save_opencode_quota_session", {
+        cookie: opencodeCookie,
+        workspace: opencodeWorkspace,
+      });
+      setOpencodeCookie("");
+      setOpencodeWorkspace("");
+      setShowOpencodeQuotaSetup(false);
+      setOpencodeQuotaConnected(true);
+      setOpencodeSnapshot(nextSnapshot);
+      markUpdated(nextSnapshot);
+      setStatus("Updated");
+    } catch (caught) {
+      setStatus("Error");
+      setError(String(caught));
+    }
+  }
+
+  async function disconnectOpenCodeQuota() {
+    setError("");
+    setStatus("Disconnecting");
+    try {
+      const connected = await invoke<boolean>("disconnect_opencode_quota");
+      setOpencodeQuotaConnected(connected);
+      setShowOpencodeQuotaSetup(false);
+      setStatus("Disconnected");
+      await refreshOpenCode();
+    } catch (caught) {
+      setStatus("Error");
+      setError(String(caught));
+    }
+  }
+
   return (
     <main className="panel">
       <header className="panel-header">
@@ -354,7 +398,7 @@ function App() {
           <div className="provider-row">
             <span>OpenCode Go</span>
             <span className={opencodeSnapshot ? "ok" : "muted"}>
-              {opencodeSnapshot ? "Updated" : "Local spend"}
+              {opencodeQuotaConnected ? "Spend + quota" : opencodeSnapshot ? "Updated" : "Local spend"}
             </span>
           </div>
 
@@ -362,7 +406,42 @@ function App() {
             <button onClick={refreshOpenCode} type="button">
               Refresh
             </button>
+            {opencodeQuotaConnected ? (
+              <button onClick={disconnectOpenCodeQuota} type="button">
+                Disconnect quota
+              </button>
+            ) : (
+              <button onClick={() => setShowOpencodeQuotaSetup((current) => !current)} type="button">
+                Dev quota
+              </button>
+            )}
           </div>
+
+          {showOpencodeQuotaSetup && !opencodeQuotaConnected && (
+            <div className="deepseek-controls">
+              <input
+                aria-label="OpenCode workspace URL"
+                onChange={(event) => setOpencodeWorkspace(event.target.value)}
+                placeholder="Workspace URL or wrk_ id"
+                type="text"
+                value={opencodeWorkspace}
+              />
+              <input
+                aria-label="OpenCode cookie header"
+                onChange={(event) => setOpencodeCookie(event.target.value)}
+                placeholder="Cookie header"
+                type="password"
+                value={opencodeCookie}
+              />
+              <button
+                disabled={!opencodeCookie.trim() || !opencodeWorkspace.trim()}
+                onClick={saveOpenCodeQuota}
+                type="button"
+              >
+                Save
+              </button>
+            </div>
+          )}
 
           {opencodeSnapshot?.lines.map((line) => (
             <div className="metric-row" key={line.label}>

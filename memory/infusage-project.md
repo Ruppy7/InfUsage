@@ -22,7 +22,7 @@ Current decided stack:
 - D4 plugin runtime: QuickJS via `rquickjs`.
 - D7 secret storage: Windows Credential Manager via `keyring`.
 - D6 storage: JSON file for latest snapshots plus capped recent history; defer SQLite until real query needs exist.
-- D8 OpenCode quota auth: deferred; local `auth.json` key is inference-only, session-cookie quota needs an app-owned browser/session flow if revived.
+- D8 OpenCode quota auth: dev-only cookie paste path stores workspace id + cookie in Windows Credential Manager; local `auth.json` key is inference-only, final quota UX should become app-owned browser/session if kept.
 - D9 OpenCode primary data: local read-only `opencode.db` spend/tokens, with Windows, Unix/WSL, `wsl.exe --cd ~ wslpath -w ...`, and `OPENCODE_DB` path discovery.
 - Scaffold: official `create-tauri-app` template with npm.
 
@@ -60,4 +60,4 @@ Phase 3 current state:
 - The popup can save one DeepSeek key, delete it to replace it, refresh balance, and render only USD remaining.
 - Codex provider slice is in progress: Rust reads local Codex `auth.json`, refreshes expired login once, calls the undocumented usage endpoint, and exposes only plan/session remaining/session reset/weekly remaining/weekly reset/credits summary JSON to the plugin/UI.
 - Claude provider slice is in progress: Rust reads local Claude Code `.credentials.json`, refreshes expired login once, calls the undocumented OAuth usage endpoint, and exposes only plan/session remaining/session reset/weekly remaining/weekly reset summary JSON to the plugin/UI.
-- OpenCode Go provider slice is in progress: Rust reads local `opencode.db` spend/tokens read-only, filtered to `session.model` JSON `providerID = "opencode-go"`; quota/session-cookie flow is deferred. User's current OpenCode DB is in WSL Ubuntu at `/home/ruppy/.local/share/opencode/opencode.db`.
+- OpenCode Go provider slice is in progress: Rust reads local `opencode.db` spend/tokens read-only, filtered to `session.model` JSON `providerID = "opencode-go"`. Dev-only quota path stores a pasted OpenCode console cookie in Windows Credential Manager, fetches `/workspace/{workspaceId}/go`, and exposes sanitized quota lines. User's current OpenCode DB is in WSL Ubuntu at `/home/ruppy/.local/share/opencode/opencode.db`.
