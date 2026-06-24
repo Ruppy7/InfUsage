@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     env, fs,
     path::{Path, PathBuf},
+    process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -130,8 +131,11 @@ fn db_path() -> Option<PathBuf> {
         "opencode",
         "opencode.db",
     ]));
+    if let Some(path) = wsl_home_file(&[".local", "share", "opencode", "opencode.db"]) {
+        candidates.push(path);
+    }
 
-    candidates.into_iter().find(|path| path.exists())
+    newest_existing(candidates)
 }
 
 fn env_path(key: &str) -> Option<PathBuf> {
@@ -165,6 +169,32 @@ fn wsl_home_candidates(parts: &[&str]) -> Vec<PathBuf> {
         })
         .map(|home| parts.iter().fold(home, |path, part| path.join(part)))
         .collect()
+}
+
+fn wsl_home_file(parts: &[&str]) -> Option<PathBuf> {
+    let linux_path = parts.join("/");
+    let output = Command::new("wsl.exe")
+        .args(["--cd", "~", "wslpath", "-w", &linux_path])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!path.is_empty()).then(|| PathBuf::from(path))
+}
+
+fn newest_existing(candidates: Vec<PathBuf>) -> Option<PathBuf> {
+    candidates
+        .into_iter()
+        .filter(|path| path.exists())
+        .max_by_key(|path| {
+            fs::metadata(path)
+                .and_then(|metadata| metadata.modified())
+                .unwrap_or(UNIX_EPOCH)
+        })
 }
 
 #[cfg(test)]

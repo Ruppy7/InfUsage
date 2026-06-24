@@ -4,6 +4,7 @@ use serde_json::Value;
 use std::{
     env, fs, io,
     path::{Path, PathBuf},
+    process::Command,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -221,7 +222,11 @@ fn auth_path() -> Option<PathBuf> {
     }
 
     candidates.extend(wsl_home_candidates(&[".claude", ".credentials.json"]));
-    candidates.into_iter().find(|path| path.exists())
+    if let Some(path) = wsl_home_file(&[".claude", ".credentials.json"]) {
+        candidates.push(path);
+    }
+
+    newest_existing(candidates)
 }
 
 fn non_empty_env_path(key: &str) -> Option<PathBuf> {
@@ -255,6 +260,32 @@ fn wsl_home_candidates(parts: &[&str]) -> Vec<PathBuf> {
         })
         .map(|home| parts.iter().fold(home, |path, part| path.join(part)))
         .collect()
+}
+
+fn wsl_home_file(parts: &[&str]) -> Option<PathBuf> {
+    let linux_path = parts.join("/");
+    let output = Command::new("wsl.exe")
+        .args(["--cd", "~", "wslpath", "-w", &linux_path])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!path.is_empty()).then(|| PathBuf::from(path))
+}
+
+fn newest_existing(candidates: Vec<PathBuf>) -> Option<PathBuf> {
+    candidates
+        .into_iter()
+        .filter(|path| path.exists())
+        .max_by_key(|path| {
+            fs::metadata(path)
+                .and_then(|metadata| metadata.modified())
+                .unwrap_or(UNIX_EPOCH)
+        })
 }
 
 fn oauth_from_json(json: &Value) -> Result<ClaudeOauth, ClaudeError> {
