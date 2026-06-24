@@ -1,5 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import {
+  Activity,
+  Bot,
+  Braces,
+  Check,
+  ChevronDown,
+  CircleDollarSign,
+  Cloud,
+  Code2,
+  Gauge,
+  KeyRound,
+  PlugZap,
+  RefreshCw,
+  Trash2,
+  X,
+} from "lucide-react";
 import "./App.css";
 
 type MetricLine = {
@@ -23,8 +40,9 @@ type DeepSeekKeySlot = {
   has_key: boolean;
 };
 
-const placeholders = ["Antigravity"];
 type OpenCodeView = "spend" | "quota";
+
+const placeholders = ["Antigravity"];
 const opencodeSpendLabels = new Set(["Last 7 days", "Last 30 days", "Tokens (30d)", "All-time"]);
 
 function App() {
@@ -50,6 +68,15 @@ function App() {
   );
   const hasKey = savedKeyCount > 0;
   const canAddKey = savedKeyCount === 0;
+  const opencodeLines = useMemo(
+    () =>
+      opencodeSnapshot?.lines.filter((line) =>
+        opencodeView === "spend"
+          ? opencodeSpendLabels.has(line.label)
+          : !opencodeSpendLabels.has(line.label),
+      ) ?? [],
+    [opencodeSnapshot, opencodeView],
+  );
 
   useEffect(() => {
     invoke<DeepSeekKeySlot[]>("list_deepseek_api_keys")
@@ -97,15 +124,15 @@ function App() {
     const capturedAt = lastUpdatedAt[providerId];
 
     if (!capturedAt) {
-      return "";
+      return "Not refreshed";
     }
 
     const date = new Date(capturedAt * 1000);
     const pad = (value: number) => String(value).padStart(2, "0");
 
-    return `Updated ${pad(date.getDate())}-${pad(date.getMonth() + 1)} ${pad(
-      date.getHours(),
-    )}:${pad(date.getMinutes())}`;
+    return `${pad(date.getDate())}-${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(
+      date.getMinutes(),
+    )}`;
   }
 
   async function saveKey() {
@@ -234,222 +261,270 @@ function App() {
 
   return (
     <main className="panel">
-      <header className="panel-header">
-        <div>
-          <h1>InfUsage</h1>
-          <p>AI usage from the Windows tray</p>
+      <header className="panel-header" data-tauri-drag-region>
+        <div className="brand" data-tauri-drag-region>
+          <div className="brand-mark" data-tauri-drag-region>
+            <Activity size={18} />
+          </div>
+          <div data-tauri-drag-region>
+            <h1>InfUsage</h1>
+            <p>Inference usage monitor</p>
+          </div>
         </div>
-        <span className="status">{status}</span>
+        <div className="header-actions">
+          <span className={status === "Error" ? "status error" : "status"}>{status}</span>
+          <button
+            aria-label="Close"
+            className="icon-button"
+            onClick={() => getCurrentWindow().hide()}
+            type="button"
+          >
+            <X size={15} />
+          </button>
+        </div>
       </header>
 
       <section className="provider-list" aria-label="Providers">
-        <div className="provider-block">
-          <div className="provider-row">
-            <span>Codex</span>
-            <span className={codexSnapshot ? "ok" : "muted"}>
-              {codexSnapshot ? "Updated" : "Uses local login"}
-            </span>
-          </div>
+        <ProviderBlock
+          actions={<IconButton icon={<RefreshCw size={14} />} label="Refresh" onClick={refreshCodex} />}
+          icon={<Code2 size={16} />}
+          metrics={codexSnapshot?.lines ?? []}
+          state={codexSnapshot ? "Updated" : "Local login"}
+          title="Codex"
+          updatedAt={updatedLabel("codex")}
+          variant={codexSnapshot ? "ok" : "muted"}
+        />
 
-          <div className="deepseek-actions">
-            <button onClick={refreshCodex} type="button">
-              Refresh
-            </button>
-          </div>
+        <ProviderBlock
+          actions={<IconButton icon={<RefreshCw size={14} />} label="Refresh" onClick={refreshClaude} />}
+          icon={<Bot size={16} />}
+          metrics={claudeSnapshot?.lines ?? []}
+          state={claudeSnapshot ? "Updated" : "Local login"}
+          title="Claude Code"
+          updatedAt={updatedLabel("claude")}
+          variant={claudeSnapshot ? "ok" : "muted"}
+        />
 
-          {codexSnapshot?.lines.map((line) => (
-            <div className="metric-row" key={line.label}>
-              <span>{line.label}</span>
-              <strong>{line.value}</strong>
-            </div>
-          ))}
-          {codexSnapshot && <p className="updated-at">{updatedLabel("codex")}</p>}
-        </div>
-
-        <div className="provider-block">
-          <div className="provider-row">
-            <span>Claude / Claude Code</span>
-            <span className={claudeSnapshot ? "ok" : "muted"}>
-              {claudeSnapshot ? "Updated" : "Uses local login"}
-            </span>
-          </div>
-
-          <div className="deepseek-actions">
-            <button onClick={refreshClaude} type="button">
-              Refresh
-            </button>
-          </div>
-
-          {claudeSnapshot?.lines.map((line) => (
-            <div className="metric-row" key={line.label}>
-              <span>{line.label}</span>
-              <strong>{line.value}</strong>
-            </div>
-          ))}
-          {claudeSnapshot && <p className="updated-at">{updatedLabel("claude")}</p>}
-        </div>
-
-        <div className="provider-block">
-          <div className="provider-row">
-            <span>DeepSeek</span>
-            <span className={hasKey ? "ok" : "muted"}>
-              {hasKey ? "Connected" : "Not connected"}
-            </span>
-          </div>
-
-          {hasKey && (
-            <div className="key-list">
-              {keySlots
-                .filter((slot) => slot.has_key)
-                .map((slot) => (
-                  <div className="key-row" key={slot.id}>
-                    <span>API key saved</span>
-                    <button onClick={() => deleteKey(slot.id)} type="button">
-                      Delete
-                    </button>
-                  </div>
-                ))}
-            </div>
-          )}
-
-          {isAddingKey && canAddKey && (
-            <div className="deepseek-controls">
-              <input
-                aria-label="DeepSeek API key"
-                onChange={(event) => setApiKey(event.target.value)}
-                placeholder="DeepSeek API key"
-                type="password"
-                value={apiKey}
-              />
-              <button disabled={!apiKey.trim()} onClick={saveKey} type="button">
-                Save
-              </button>
-              {hasKey && (
-                <button onClick={() => setIsAddingKey(false)} type="button">
-                  Cancel
-                </button>
+        <ProviderBlock
+          actions={
+            <>
+              {!isAddingKey && canAddKey && (
+                <IconButton icon={<KeyRound size={14} />} label="Add key" onClick={() => setIsAddingKey(true)} />
               )}
-            </div>
-          )}
+              <IconButton
+                disabled={!hasKey}
+                icon={<RefreshCw size={14} />}
+                label="Refresh"
+                onClick={refreshDeepSeek}
+              />
+            </>
+          }
+          extra={
+            <>
+              {hasKey && (
+                <div className="key-list">
+                  {keySlots
+                    .filter((slot) => slot.has_key)
+                    .map((slot) => (
+                      <div className="key-row" key={slot.id}>
+                        <span>API key saved</span>
+                        <button className="ghost-button danger" onClick={() => deleteKey(slot.id)} type="button">
+                          <Trash2 size={13} />
+                          Delete
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
 
-          <div className="deepseek-actions">
-            {!isAddingKey && canAddKey && (
-              <button onClick={() => setIsAddingKey(true)} type="button">
-                Add key
-              </button>
-            )}
-            <button disabled={!hasKey} onClick={refreshDeepSeek} type="button">
-              Refresh
-            </button>
-          </div>
+              {isAddingKey && canAddKey && (
+                <div className="form-grid">
+                  <input
+                    aria-label="DeepSeek API key"
+                    onChange={(event) => setApiKey(event.target.value)}
+                    placeholder="DeepSeek API key"
+                    type="password"
+                    value={apiKey}
+                  />
+                  <button disabled={!apiKey.trim()} onClick={saveKey} type="button">
+                    Save
+                  </button>
+                  {hasKey && (
+                    <button className="ghost-button" onClick={() => setIsAddingKey(false)} type="button">
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          }
+          icon={<CircleDollarSign size={16} />}
+          metrics={deepseekSnapshot?.lines ?? []}
+          state={hasKey ? "Connected" : "Not connected"}
+          title="DeepSeek"
+          updatedAt={deepseekSnapshot ? updatedLabel("deepseek") : "Not refreshed"}
+          variant={hasKey ? "ok" : "muted"}
+        />
 
-          {deepseekSnapshot?.lines.map((line) => (
-            <div className="metric-row" key={line.label}>
-              <span>{line.label}</span>
-              <strong>{line.value}</strong>
-            </div>
-          ))}
-          {deepseekSnapshot && <p className="updated-at">{updatedLabel("deepseek")}</p>}
-        </div>
-
-        <div className="provider-block">
-          <div className="provider-row">
-            <span>OpenCode Go</span>
-            <span className={opencodeSnapshot ? "ok" : "muted"}>
-              {opencodeQuotaConnected
-                ? opencodeView === "quota"
-                  ? "Quota"
-                  : "Spend"
-                : opencodeSnapshot
-                  ? "Updated"
-                  : "Local spend"}
-            </span>
-          </div>
-
-          <div className="deepseek-actions">
-            <button onClick={refreshOpenCode} type="button">
-              Refresh
-            </button>
-            {opencodeQuotaConnected && (
-              <>
+        <ProviderBlock
+          actions={
+            <>
+              <IconButton icon={<RefreshCw size={14} />} label="Refresh" onClick={refreshOpenCode} />
+              {opencodeQuotaConnected && (
+                <div className="segmented" role="group" aria-label="OpenCode view">
+                  <button
+                    aria-pressed={opencodeView === "spend"}
+                    onClick={() => setOpencodeView("spend")}
+                    type="button"
+                  >
+                    Spend
+                  </button>
+                  <button
+                    aria-pressed={opencodeView === "quota"}
+                    onClick={() => setOpencodeView("quota")}
+                    type="button"
+                  >
+                    Quota
+                  </button>
+                </div>
+              )}
+              {opencodeQuotaConnected ? (
+                <IconButton
+                  icon={<PlugZap size={14} />}
+                  label="Disconnect"
+                  onClick={disconnectOpenCodeQuota}
+                />
+              ) : (
+                <IconButton
+                  icon={<ChevronDown size={14} />}
+                  label="Dev quota"
+                  onClick={() => setShowOpencodeQuotaSetup((current) => !current)}
+                />
+              )}
+            </>
+          }
+          extra={
+            showOpencodeQuotaSetup &&
+            !opencodeQuotaConnected && (
+              <div className="form-grid quota-form">
+                <input
+                  aria-label="OpenCode workspace URL"
+                  onChange={(event) => setOpencodeWorkspace(event.target.value)}
+                  placeholder="Workspace URL or wrk_ id"
+                  type="text"
+                  value={opencodeWorkspace}
+                />
+                <input
+                  aria-label="OpenCode cookie header"
+                  onChange={(event) => setOpencodeCookie(event.target.value)}
+                  placeholder="Cookie header"
+                  type="password"
+                  value={opencodeCookie}
+                />
                 <button
-                  disabled={opencodeView === "spend"}
-                  onClick={() => setOpencodeView("spend")}
+                  disabled={!opencodeCookie.trim() || !opencodeWorkspace.trim()}
+                  onClick={saveOpenCodeQuota}
                   type="button"
                 >
-                  Spend
+                  Save
                 </button>
-                <button
-                  disabled={opencodeView === "quota"}
-                  onClick={() => setOpencodeView("quota")}
-                  type="button"
-                >
-                  Quota
-                </button>
-              </>
-            )}
-            {opencodeQuotaConnected ? (
-              <button onClick={disconnectOpenCodeQuota} type="button">
-                Disconnect quota
-              </button>
-            ) : (
-              <button onClick={() => setShowOpencodeQuotaSetup((current) => !current)} type="button">
-                Dev quota
-              </button>
-            )}
-          </div>
-
-          {showOpencodeQuotaSetup && !opencodeQuotaConnected && (
-            <div className="deepseek-controls">
-              <input
-                aria-label="OpenCode workspace URL"
-                onChange={(event) => setOpencodeWorkspace(event.target.value)}
-                placeholder="Workspace URL or wrk_ id"
-                type="text"
-                value={opencodeWorkspace}
-              />
-              <input
-                aria-label="OpenCode cookie header"
-                onChange={(event) => setOpencodeCookie(event.target.value)}
-                placeholder="Cookie header"
-                type="password"
-                value={opencodeCookie}
-              />
-              <button
-                disabled={!opencodeCookie.trim() || !opencodeWorkspace.trim()}
-                onClick={saveOpenCodeQuota}
-                type="button"
-              >
-                Save
-              </button>
-            </div>
-          )}
-
-          {opencodeSnapshot?.lines
-            .filter((line) =>
-              opencodeView === "spend"
-                ? opencodeSpendLabels.has(line.label)
-                : !opencodeSpendLabels.has(line.label),
-            )
-            .map((line) => (
-              <div className="metric-row" key={line.label}>
-                <span>{line.label}</span>
-                <strong>{line.value}</strong>
               </div>
-            ))}
-          {opencodeSnapshot && <p className="updated-at">{updatedLabel("opencode")}</p>}
-        </div>
+            )
+          }
+          icon={<Braces size={16} />}
+          metrics={opencodeLines}
+          state={opencodeQuotaConnected ? (opencodeView === "quota" ? "Quota" : "Spend") : "Local spend"}
+          title="OpenCode Go"
+          updatedAt={opencodeSnapshot ? updatedLabel("opencode") : "Not refreshed"}
+          variant={opencodeSnapshot ? "ok" : "muted"}
+        />
 
         {placeholders.map((provider) => (
-          <div className="provider-row" key={provider}>
-            <span>{provider}</span>
-            <span className="muted">Not connected</span>
-          </div>
+          <ProviderBlock
+            icon={<Cloud size={16} />}
+            key={provider}
+            metrics={[]}
+            state="Not connected"
+            title={provider}
+            updatedAt="Not refreshed"
+            variant="muted"
+          />
         ))}
       </section>
 
-      <footer>{error || "Latest snapshots are stored locally."}</footer>
+      <footer className={error ? "footer error" : "footer"}>
+        {error || "Latest snapshots are stored locally"}
+      </footer>
     </main>
+  );
+}
+
+type ProviderBlockProps = {
+  actions?: React.ReactNode;
+  extra?: React.ReactNode;
+  icon: React.ReactNode;
+  metrics: MetricLine[];
+  state: string;
+  title: string;
+  updatedAt: string;
+  variant: "ok" | "muted";
+};
+
+function ProviderBlock({
+  actions,
+  extra,
+  icon,
+  metrics,
+  state,
+  title,
+  updatedAt,
+  variant,
+}: ProviderBlockProps) {
+  return (
+    <div className="provider-block">
+      <div className="provider-heading">
+        <div className="provider-title">
+          <span className="provider-icon">{icon}</span>
+          <span>{title}</span>
+        </div>
+        <span className={`chip ${variant}`}>{variant === "ok" && <Check size={12} />}{state}</span>
+      </div>
+
+      {actions && <div className="action-row">{actions}</div>}
+      {extra}
+
+      {metrics.length > 0 && (
+        <div className="metric-list">
+          {metrics.map((line) => (
+            <div className="metric-row" key={line.label}>
+              <span>{line.label}</span>
+              <strong>{line.value}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="provider-foot">
+        <Gauge size={12} />
+        <span>{updatedAt}</span>
+      </div>
+    </div>
+  );
+}
+
+type IconButtonProps = {
+  disabled?: boolean;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+};
+
+function IconButton({ disabled = false, icon, label, onClick }: IconButtonProps) {
+  return (
+    <button className="ghost-button" disabled={disabled} onClick={onClick} type="button">
+      {icon}
+      {label}
+    </button>
   );
 }
 
