@@ -11,6 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
+AGENTS.md
+PLAN.md
+docs/
 memory/
 
 # Editor directories and files

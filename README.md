@@ -1,92 +1,75 @@
 # InfUsage
 
-Windows-native system-tray app for tracking AI inference usage and limits.
+InfUsage is a Windows tray app for checking AI usage, limits, and balance without opening every provider dashboard.
 
-## Current status
+It is built with Tauri, React, TypeScript, and Rust. Provider credentials and session data are kept in Windows Credential Manager where possible, and the UI shows only sanitized usage summaries.
 
-- D1 shell: Tauri v2.
-- D2 frontend: React + TypeScript + Vite.
-- D3 backend: Rust inside Tauri.
-- D4 plugin runtime: QuickJS via `rquickjs`.
-- D6 storage: JSON file with latest provider snapshots only.
-- D7 secrets: Windows Credential Manager via `keyring`.
-- Active branch: `codex/tray-design-refresh`.
+## Providers
 
-Current provider state:
+- OpenAI Codex: reads local Codex auth and shows quota/reset summary.
+- Claude: reads local Claude credentials and shows quota/reset summary.
+- OpenCode Go: shows authenticated Go limits from the OpenCode workspace page.
+- DeepSeek: optional API balance check, showing USD balance.
 
-- DeepSeek: optional balance provider, one saved key, USD remaining only.
-- OpenAI Codex: local Codex auth plus sanitized quota summary.
-- Anthropic Claude / Claude Code: local Claude Code auth plus sanitized quota summary.
-- OpenCode Go: experimental cookie-backed quota path for authenticated Go limits.
-- Antigravity (AGY): pending.
+## Usage
 
-Optional/backlog:
+For now, InfUsage is source-first. Clone the repo, install dependencies, and run it locally:
 
-- Xiaomi MiMo Token Plan Lite
+```powershell
+git clone https://github.com/Ruppy7/InfUsage.git
+cd InfUsage
+npm install
+npm run tauri dev
+```
 
-## OpenCode Go usage
+Build checks:
 
-InfUsage shows OpenCode Go limits from the authenticated Go page after you link your browser session. This is the main OpenCode path today, but it is still marked experimental because it depends on OpenCode's web page data shape and session cookie behavior.
+```powershell
+npm run build
+cd src-tauri
+cargo test
+```
 
-To view the source page yourself, open:
+Build a local desktop package:
+
+```powershell
+npm run tauri -- build
+```
+
+Official signed installers are not published yet.
+
+## OpenCode Go
+
+OpenCode Go limits currently use an experimental cookie-backed flow:
+
+1. Log in to OpenCode in your browser.
+2. Open your Go workspace page:
 
 ```text
 https://opencode.ai/workspace/<your-workspace-id>/go
 ```
 
-The workspace id starts with `wrk_` and is visible in the OpenCode URL.
+3. In InfUsage settings, paste either the workspace URL or the `wrk_...` id.
+4. Paste the `Cookie` request header from that logged-in browser request.
 
-To link it in the app, open Settings, paste either the workspace URL or `wrk_...` id, then paste the `Cookie` request header from your logged-in browser request to that Go page. The cookie is stored in Windows Credential Manager and is only used by the Rust host to fetch sanitized quota fields.
+The cookie is stored in Windows Credential Manager and used only by the Rust host to fetch quota fields. This may break if OpenCode changes the page shape or session behavior.
 
-Safer fallback: the repo still contains a read-only local `opencode.db` device-spend reader in `src-tauri/src/providers/opencode_db.rs`. It does not require a web session cookie, but it is less accurate for quota because it only sees local device spend, especially if you use OpenCode from WSL or other machines. It is optional reference code and is not shown or called by the current app UI.
+A safer local fallback exists in `src-tauri/src/providers/opencode_db.rs`, but it only sees local device spend and is not wired into the current UI.
 
-## Development
+## Caveats
 
-Run from the project folder:
+- Windows is the primary target.
+- Provider usage endpoints can change without notice.
+- OpenCode Go support is experimental.
+- The app is unsigned.
+- Provider logos and names belong to their respective owners.
 
-```powershell
-cd path\to\InfUsage
-git switch codex/tray-design-refresh
-npm install
-npm run tauri dev
-```
+## Planned
 
-Build the web frontend:
-
-```bash
-npm run build
-```
-
-Run the Tauri desktop app in development:
-
-```bash
-npm run tauri dev
-```
-
-Build a Windows app and installer:
-
-```bash
-npm run tauri -- build
-```
-
-Release artifacts are written under:
-
-```text
-src-tauri\target\release\infusage.exe
-src-tauri\target\release\bundle\msi\
-src-tauri\target\release\bundle\nsis\
-```
-
-`npm run tauri dev` requires Rust/Cargo and OS-specific Tauri prerequisites.
-
-For Windows setup, see [docs/windows-dev-setup.md](docs/windows-dev-setup.md).
-
-## Project docs
-
-- `PLAN.md` - scope, phases, and decision log.
-- `docs/handoff.md` - current branch/status handoff.
-- `AGENTS.md` - collaboration rules for AI agents.
-- `memory/` - durable project facts.
+- Final app icon and branding.
+- Public release packaging.
+- Better provider setup flows.
+- Antigravity support if a stable local or authenticated usage source is available.
 
 ## License
 
