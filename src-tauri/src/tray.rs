@@ -1,11 +1,15 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, PhysicalPosition, Position, WindowEvent,
+    Emitter, LogicalSize, Manager, PhysicalPosition, Position, Size, WindowEvent,
 };
 
 const MAIN_WINDOW: &str = "main";
 const POPUP_MARGIN: i32 = 16;
+const ALL_SIZE: (f64, f64) = (400.0, 540.0);
+const MINIMAL_SIZE: (f64, f64) = (320.0, 225.0);
+static POPPED_OUT: AtomicBool = AtomicBool::new(false);
 
 pub fn create(app: &tauri::App) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
@@ -43,6 +47,7 @@ pub fn create(app: &tauri::App) -> tauri::Result<()> {
                 let _ = window_to_hide.hide();
             }
         });
+        show_popup_window(&window);
     }
 
     Ok(())
@@ -54,7 +59,7 @@ fn toggle_main_window(app: &tauri::AppHandle) {
     };
 
     if window.is_visible().unwrap_or(false) {
-        let _ = window.hide();
+        let _ = window.emit("tray-popup-closing", ());
         return;
     }
 
@@ -69,9 +74,59 @@ fn show_main_window(app: &tauri::AppHandle) {
     show_popup_window(&window);
 }
 
+pub fn hide_main_window(app: &tauri::AppHandle) -> tauri::Result<()> {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+        window.hide()?;
+    }
+
+    Ok(())
+}
+
+pub fn request_close_animation(app: &tauri::AppHandle) -> tauri::Result<()> {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+        window.emit("tray-popup-closing", ())?;
+    }
+
+    Ok(())
+}
+
+pub fn set_popped_out(app: &tauri::AppHandle, popped_out: bool) -> tauri::Result<()> {
+    POPPED_OUT.store(popped_out, Ordering::Relaxed);
+
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+        window.set_always_on_top(popped_out)?;
+        if !popped_out {
+            position_near_bottom_right(&window);
+            window.set_always_on_top(true)?;
+        }
+    }
+
+    Ok(())
+}
+
+pub fn set_display_mode(app: &tauri::AppHandle, mode: &str) -> tauri::Result<()> {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW) else {
+        return Ok(());
+    };
+
+    let (width, height) = if mode == "minimal" {
+        MINIMAL_SIZE
+    } else {
+        ALL_SIZE
+    };
+
+    window.set_size(Size::Logical(LogicalSize { width, height }))?;
+    show_popup_window(&window);
+    Ok(())
+}
+
 fn show_popup_window(window: &tauri::WebviewWindow) {
-    position_near_bottom_right(window);
+    if !POPPED_OUT.load(Ordering::Relaxed) {
+        position_near_bottom_right(window);
+    }
     let _ = window.unminimize();
+    let _ = window.set_always_on_top(true);
+    let _ = window.emit("tray-popup-opened", ());
     let _ = window.show();
     let _ = window.set_focus();
 }

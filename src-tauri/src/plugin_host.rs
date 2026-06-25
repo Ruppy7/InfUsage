@@ -47,7 +47,7 @@ impl Host for InfUsageHost {
     }
 
     fn opencode_usage_json(&self) -> String {
-        r#"{"spend":null}"#.to_string()
+        r#"{"quota":null}"#.to_string()
     }
 }
 
@@ -73,7 +73,7 @@ function probe(ctx) {
     providerId: "deepseek",
     lines: [
       {
-        label: "USD remaining",
+        label: "USD",
         value: usd ? usd.total_balance : "0.00"
       }
     ]
@@ -82,10 +82,15 @@ function probe(ctx) {
 "#;
 
 const CODEX_PROVIDER: &str = r#"
-function formatResetAt(seconds) {
-  const date = typeof seconds === "number" ? new Date(seconds * 1000) : new Date(seconds);
-  const pad = (value) => String(value).padStart(2, "0");
-  return `${pad(date.getDate())}-${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+function resetText(value) {
+  const date = typeof value === "number" ? new Date(value * 1000) : new Date(value);
+  const seconds = Math.max(0, Math.floor((date.getTime() - Date.now()) / 1000));
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 }
 
 function probe(ctx) {
@@ -97,13 +102,13 @@ function probe(ctx) {
   }
 
   if (usage.session_remaining_percent !== null && usage.session_remaining_percent !== undefined) {
-    const reset = usage.session_reset_at ? ` - ${formatResetAt(usage.session_reset_at)}` : "";
-    lines.push({ label: "Session remaining", value: `${usage.session_remaining_percent}%${reset}` });
+    const reset = usage.session_reset_at ? ` - Resets in ${resetText(usage.session_reset_at)}` : "";
+    lines.push({ label: "Session", value: `${usage.session_remaining_percent}%${reset}` });
   }
 
   if (usage.weekly_remaining_percent !== null && usage.weekly_remaining_percent !== undefined) {
-    const reset = usage.weekly_reset_at ? ` - ${formatResetAt(usage.weekly_reset_at)}` : "";
-    lines.push({ label: "Weekly remaining", value: `${usage.weekly_remaining_percent}%${reset}` });
+    const reset = usage.weekly_reset_at ? ` - Resets in ${resetText(usage.weekly_reset_at)}` : "";
+    lines.push({ label: "Weekly", value: `${usage.weekly_remaining_percent}%${reset}` });
   }
 
   if (usage.credits_balance !== null && usage.credits_balance !== undefined) {
@@ -118,10 +123,15 @@ function probe(ctx) {
 "#;
 
 const CLAUDE_PROVIDER: &str = r#"
-function formatResetAt(value) {
+function resetText(value) {
   const date = typeof value === "number" ? new Date(value * 1000) : new Date(value);
-  const pad = (next) => String(next).padStart(2, "0");
-  return `${pad(date.getDate())}-${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  const seconds = Math.max(0, Math.floor((date.getTime() - Date.now()) / 1000));
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 }
 
 function probe(ctx) {
@@ -133,13 +143,13 @@ function probe(ctx) {
   }
 
   if (usage.session_remaining_percent !== null && usage.session_remaining_percent !== undefined) {
-    const reset = usage.session_reset_at ? ` - ${formatResetAt(usage.session_reset_at)}` : "";
-    lines.push({ label: "Session remaining", value: `${usage.session_remaining_percent}%${reset}` });
+    const reset = usage.session_reset_at ? ` - Resets in ${resetText(usage.session_reset_at)}` : "";
+    lines.push({ label: "Session", value: `${usage.session_remaining_percent}%${reset}` });
   }
 
   if (usage.weekly_remaining_percent !== null && usage.weekly_remaining_percent !== undefined) {
-    const reset = usage.weekly_reset_at ? ` - ${formatResetAt(usage.weekly_reset_at)}` : "";
-    lines.push({ label: "Weekly remaining", value: `${usage.weekly_remaining_percent}%${reset}` });
+    const reset = usage.weekly_reset_at ? ` - Resets in ${resetText(usage.weekly_reset_at)}` : "";
+    lines.push({ label: "Weekly", value: `${usage.weekly_remaining_percent}%${reset}` });
   }
 
   return {
@@ -150,17 +160,6 @@ function probe(ctx) {
 "#;
 
 const OPENCODE_PROVIDER: &str = r#"
-function money(value) {
-  return `$${(value || 0).toFixed(2)}`;
-}
-
-function compact(count) {
-  if (count === null || count === undefined) return "0";
-  if (count >= 1e6) return `${(count / 1e6).toFixed(1)}M`;
-  if (count >= 1e3) return `${(count / 1e3).toFixed(1)}K`;
-  return String(count);
-}
-
 function resetText(seconds) {
   if (seconds === null || seconds === undefined) return "";
   const days = Math.floor(seconds / 86400);
@@ -178,7 +177,7 @@ function quotaLine(label, window) {
       ? `${window.usage_percent}% used`
       : (window.status || "n/a");
   const reset = window.reset_in_sec !== null && window.reset_in_sec !== undefined
-    ? ` - resets in ${resetText(window.reset_in_sec)}`
+    ? ` - Resets in ${resetText(window.reset_in_sec)}`
     : "";
   return { label, value: `${used}${reset}` };
 }
@@ -186,14 +185,6 @@ function quotaLine(label, window) {
 function probe(ctx) {
   const data = JSON.parse(ctx.host.opencodeUsageJson());
   const lines = [];
-
-  const spend = data.spend;
-  if (spend) {
-    lines.push({ label: "Last 7 days", value: money(spend.cost_7d) });
-    lines.push({ label: "Last 30 days", value: money(spend.cost_30d) });
-    lines.push({ label: "Tokens (30d)", value: compact(spend.tokens_30d) });
-    lines.push({ label: "All-time", value: money(spend.cost_all) });
-  }
 
   const quota = data.quota;
   if (quota) {
@@ -448,7 +439,7 @@ mod tests {
             ProviderSnapshot {
                 provider_id: "deepseek".to_string(),
                 lines: vec![MetricLine {
-                    label: "USD remaining".to_string(),
+                    label: "USD".to_string(),
                     value: "12.50".to_string(),
                 }],
             }
@@ -476,30 +467,14 @@ mod tests {
 
         let snapshot = run_codex_provider(&host).expect("Codex plugin should run");
 
-        assert_eq!(
-            snapshot,
-            ProviderSnapshot {
-                provider_id: "codex".to_string(),
-                lines: vec![
-                    MetricLine {
-                        label: "Plan".to_string(),
-                        value: "pro".to_string(),
-                    },
-                    MetricLine {
-                        label: "Session remaining".to_string(),
-                        value: "12.5% - 23-06 21:14".to_string(),
-                    },
-                    MetricLine {
-                        label: "Weekly remaining".to_string(),
-                        value: "50% - 27-06 16:18".to_string(),
-                    },
-                    MetricLine {
-                        label: "Credits".to_string(),
-                        value: "9".to_string(),
-                    },
-                ],
-            }
-        );
+        assert_eq!(snapshot.provider_id, "codex".to_string());
+        assert_eq!(snapshot.lines.len(), 4);
+        assert_eq!(snapshot.lines[0].label, "Plan");
+        assert_eq!(snapshot.lines[1].label, "Session");
+        assert!(snapshot.lines[1].value.starts_with("12.5% - Resets in "));
+        assert_eq!(snapshot.lines[2].label, "Weekly");
+        assert!(snapshot.lines[2].value.starts_with("50% - Resets in "));
+        assert_eq!(snapshot.lines[3].label, "Credits");
     }
 
     #[test]
@@ -525,24 +500,16 @@ mod tests {
         assert_eq!(snapshot.provider_id, "claude".to_string(),);
         assert_eq!(snapshot.lines.len(), 3);
         assert_eq!(snapshot.lines[0].label, "Plan");
-        assert_eq!(snapshot.lines[1].label, "Session remaining");
+        assert_eq!(snapshot.lines[1].label, "Session");
         assert!(snapshot.lines[1].value.starts_with("75% - "));
-        assert_eq!(snapshot.lines[2].label, "Weekly remaining");
+        assert_eq!(snapshot.lines[2].label, "Weekly");
         assert!(snapshot.lines[2].value.starts_with("60% - "));
     }
 
     #[test]
-    fn opencode_provider_shows_spend_only_without_quota() {
+    fn opencode_provider_shows_no_lines_without_quota() {
         let host = FakeHost {
-            opencode_usage_json: r#"
-            {
-              "spend": {
-                "cost_7d": 1.5, "cost_30d": 4.2, "cost_all": 8.08,
-                "tokens_30d": 1500000, "sessions_30d": 12
-              }
-            }
-            "#
-            .to_string(),
+            opencode_usage_json: r#"{"quota": null}"#.to_string(),
             ..Default::default()
         };
 
@@ -552,24 +519,7 @@ mod tests {
             snapshot,
             ProviderSnapshot {
                 provider_id: "opencode".to_string(),
-                lines: vec![
-                    MetricLine {
-                        label: "Last 7 days".to_string(),
-                        value: "$1.50".to_string()
-                    },
-                    MetricLine {
-                        label: "Last 30 days".to_string(),
-                        value: "$4.20".to_string()
-                    },
-                    MetricLine {
-                        label: "Tokens (30d)".to_string(),
-                        value: "1.5M".to_string()
-                    },
-                    MetricLine {
-                        label: "All-time".to_string(),
-                        value: "$8.08".to_string()
-                    },
-                ],
+                lines: vec![],
             }
         );
     }
@@ -579,7 +529,6 @@ mod tests {
         let host = FakeHost {
             opencode_usage_json: r#"
             {
-              "spend": { "cost_7d": 0, "cost_30d": 0, "cost_all": 0, "tokens_30d": 0, "sessions_30d": 0 },
               "quota": {
                 "use_balance": false,
                 "rolling": { "status": "ok", "reset_in_sec": 18000, "usage_percent": 0 },
@@ -599,19 +548,8 @@ mod tests {
             .map(|line| line.label.as_str())
             .collect::<Vec<_>>();
 
-        assert_eq!(
-            labels,
-            vec![
-                "Last 7 days",
-                "Last 30 days",
-                "Tokens (30d)",
-                "All-time",
-                "Rolling",
-                "Weekly",
-                "Monthly"
-            ]
-        );
-        assert_eq!(snapshot.lines[4].value, "0% used - resets in 5h 0m");
-        assert_eq!(snapshot.lines[6].value, "9% used - resets in 13d 19h");
+        assert_eq!(labels, vec!["Rolling", "Weekly", "Monthly"]);
+        assert_eq!(snapshot.lines[0].value, "0% used - Resets in 5h 0m");
+        assert_eq!(snapshot.lines[2].value, "9% used - Resets in 13d 19h");
     }
 }

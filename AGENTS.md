@@ -41,9 +41,9 @@ Rules:
 
 - Current branch: `codex/tray-design-refresh`.
 - The tray popup is a compact undecorated `400x540` window with a custom draggable header, compact provider cards, status chips, icon buttons, and `lucide-react` icons.
-- DeepSeek balance, Codex quota, Claude quota, and OpenCode Go spend are wired through the host/plugin flow.
-- OpenCode spend is local read-only SQLite filtered to `providerID = "opencode-go"` and includes WSL path discovery because the user runs OpenCode in WSL.
-- OpenCode quota is a dev-only cookie validation path stored in Windows Credential Manager; do not treat pasted cookies as final UX.
+- DeepSeek balance, Codex quota, Claude quota, and OpenCode Go limits are wired through the host/plugin flow.
+- OpenCode local SQLite spend is archived optional/reference code and is not shown or called by the app.
+- OpenCode quota uses an experimental cookie path stored in Windows Credential Manager; do not treat pasted cookies as permanently stable UX.
 - Antigravity remains pending.
 
 ## Architectural centerpiece
@@ -53,6 +53,6 @@ A sandboxed **plugin system**: each provider is a self-contained `.js` plugin th
 ## Key locations
 
 - `PLAN.md` - full plan, phases, decision log, concept index.
-- `memory/` - durable facts about the user, working style, and project.
+- `memory/` - local agent memory, ignored by git for public commits.
 - `src-tauri/` - Rust backend.
 - `src/` - React frontend.

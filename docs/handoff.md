@@ -17,7 +17,7 @@ https://github.com/Ruppy7/InfUsage
 Work from the native Windows project folder:
 
 ```powershell
-cd C:\Users\rupes\Documents\InfUsage
+cd path\to\InfUsage
 git switch codex/tray-design-refresh
 npm install
 npm run tauri dev
@@ -31,9 +31,9 @@ npm run tauri dev
 - D4: QuickJS via `rquickjs` for provider plugins.
 - D6: JSON latest snapshots only; no usage history UI for now.
 - D7: Windows Credential Manager via `keyring`.
-- D8: OpenCode quota cookie paste path is dev-only validation.
-- D9: OpenCode local SQLite spend is primary, filtered to `providerID = "opencode-go"`.
-- D10: Current tray panel baseline is a compact undecorated 400x540 popup with `lucide-react` icons.
+- D8: OpenCode quota cookie paste path is the main experimental implementation.
+- D9: OpenCode Go limits are the active app path; local SQLite device spend is archived optional/reference code.
+- D10-D16: Current tray panel baseline is compact Focus/Dashboard mode with provider icons, status chips, global/per-provider refresh, optional periodic refresh, light/dark mode, and floating pop-out.
 
 ## Current app state
 
@@ -41,17 +41,17 @@ npm run tauri dev
 - Tray icon appears; left-click toggles the window.
 - Closing the window hides it; tray menu has Show and Quit.
 - Popup positions near the bottom-right and avoids the taskbar.
-- UI uses compact provider cards, status chips, a custom draggable title bar, and icon buttons.
+- UI uses compact provider cards, status chips, provider icons, and icon buttons.
 - Provider list scrolls inside the popup.
-- OpenCode shows either Spend or Quota, never both at the same time.
+- OpenCode shows Go limits only in the app.
 
 ## Provider state
 
 - DeepSeek balance works with one saved key in Windows Credential Manager and shows USD remaining.
 - Codex reads local Codex auth, refreshes once when needed, and shows sanitized quota/reset fields.
 - Claude reads local Claude Code credentials from the user's WSL/native setup, refreshes once when needed, and shows sanitized quota/reset fields.
-- OpenCode reads local `opencode.db` spend/tokens read-only, including WSL paths, filtered to OpenCode Go provider usage only.
-- OpenCode quota has a dev-only Credential Manager cookie path for validating the server-rendered `/workspace/{workspaceId}/go` data contract.
+- OpenCode quota uses a Credential Manager cookie path for the server-rendered `/workspace/{workspaceId}/go` data contract.
+- Local OpenCode `opencode.db` spend is safer but this-device-only; it remains optional/reference code and is not called by the app.
 - Antigravity is still pending.
 
 ## Next likely step
@@ -61,4 +61,4 @@ Continue Phase 6 design polish:
 - refine tray icon assets
 - tighten color, typography, spacing, and readable density
 - review provider row hierarchy and empty/error/stale states
-- then revisit Windows packaging
+- package with `npm run tauri -- build`

@@ -1,8 +1,9 @@
 use crate::{
     plugin_host,
-    providers::{claude, codex, deepseek, opencode_db, opencode_quota},
+    providers::{claude, codex, deepseek, opencode_quota},
     secrets,
     snapshot_store::{self, SavedSnapshot},
+    tray,
 };
 
 const OPENCODE_WORKSPACE_MARKER: &str = "/workspace/";
@@ -143,56 +144,96 @@ pub fn delete_deepseek_api_key(slot: u8) -> Result<Vec<secrets::DeepSeekKeySlot>
 }
 
 #[tauri::command]
-pub fn refresh_deepseek(app: tauri::AppHandle) -> Result<plugin_host::ProviderSnapshot, String> {
-    let api_keys = secrets::load_deepseek_api_keys();
+pub async fn refresh_deepseek(
+    app: tauri::AppHandle,
+) -> Result<plugin_host::ProviderSnapshot, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let api_keys = secrets::load_deepseek_api_keys();
 
-    if api_keys.is_empty() {
-        return Err("DeepSeek API key is not saved".to_string());
-    }
+        if api_keys.is_empty() {
+            return Err("DeepSeek API key is not saved".to_string());
+        }
 
-    let mut usd_remaining = 0.0;
+        let mut usd_remaining = 0.0;
 
-    for (slot, api_key) in api_keys {
-        let balance_json = deepseek::fetch_balance_json(&api_key)
-            .map_err(|error| format!("DeepSeek key {slot}: {error}"))?;
-        let balance = deepseek::parse_balance_json(&balance_json)
-            .map_err(|error| format!("DeepSeek key {slot}: {error}"))?;
+        for (slot, api_key) in api_keys {
+            let balance_json = deepseek::fetch_balance_json(&api_key)
+                .map_err(|error| format!("DeepSeek key {slot}: {error}"))?;
+            let balance = deepseek::parse_balance_json(&balance_json)
+                .map_err(|error| format!("DeepSeek key {slot}: {error}"))?;
 
-        usd_remaining += deepseek::usd_total_balance(&balance);
-    }
+            usd_remaining += deepseek::usd_total_balance(&balance);
+        }
 
-    let balance_json =
-        deepseek::usd_balance_json(usd_remaining).map_err(|error| error.to_string())?;
+        let balance_json =
+            deepseek::usd_balance_json(usd_remaining).map_err(|error| error.to_string())?;
 
-    let snapshot = plugin_host::run_deepseek_provider(&DeepSeekHost { balance_json })
-        .map_err(|error| error.to_string())?;
-    snapshot_store::save_latest(&app, &snapshot).map_err(|error| error.to_string())?;
-    Ok(snapshot)
+        let snapshot = plugin_host::run_deepseek_provider(&DeepSeekHost { balance_json })
+            .map_err(|error| error.to_string())?;
+        snapshot_store::save_latest(&app, &snapshot).map_err(|error| error.to_string())?;
+        Ok(snapshot)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
-pub fn refresh_codex(app: tauri::AppHandle) -> Result<plugin_host::ProviderSnapshot, String> {
-    let usage_json = codex::fetch_usage_summary_json().map_err(|error| error.to_string())?;
+pub async fn refresh_codex(app: tauri::AppHandle) -> Result<plugin_host::ProviderSnapshot, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let usage_json = codex::fetch_usage_summary_json().map_err(|error| error.to_string())?;
 
-    let snapshot = plugin_host::run_codex_provider(&CodexHost { usage_json })
-        .map_err(|error| error.to_string())?;
-    snapshot_store::save_latest(&app, &snapshot).map_err(|error| error.to_string())?;
-    Ok(snapshot)
+        let snapshot = plugin_host::run_codex_provider(&CodexHost { usage_json })
+            .map_err(|error| error.to_string())?;
+        snapshot_store::save_latest(&app, &snapshot).map_err(|error| error.to_string())?;
+        Ok(snapshot)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
-pub fn refresh_claude(app: tauri::AppHandle) -> Result<plugin_host::ProviderSnapshot, String> {
-    let usage_json = claude::fetch_usage_summary_json().map_err(|error| error.to_string())?;
+pub async fn refresh_claude(
+    app: tauri::AppHandle,
+) -> Result<plugin_host::ProviderSnapshot, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let usage_json = claude::fetch_usage_summary_json().map_err(|error| error.to_string())?;
 
-    let snapshot = plugin_host::run_claude_provider(&ClaudeHost { usage_json })
-        .map_err(|error| error.to_string())?;
-    snapshot_store::save_latest(&app, &snapshot).map_err(|error| error.to_string())?;
-    Ok(snapshot)
+        let snapshot = plugin_host::run_claude_provider(&ClaudeHost { usage_json })
+            .map_err(|error| error.to_string())?;
+        snapshot_store::save_latest(&app, &snapshot).map_err(|error| error.to_string())?;
+        Ok(snapshot)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
 pub fn list_saved_snapshots(app: tauri::AppHandle) -> Result<Vec<SavedSnapshot>, String> {
     snapshot_store::load_all(&app).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn hide_tray_window(app: tauri::AppHandle) -> Result<(), String> {
+    tray::hide_main_window(&app).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn request_tray_close(app: tauri::AppHandle) -> Result<(), String> {
+    tray::request_close_animation(&app).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn set_tray_popped_out(app: tauri::AppHandle, popped_out: bool) -> Result<(), String> {
+    tray::set_popped_out(&app, popped_out).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn set_tray_display_mode(app: tauri::AppHandle, mode: String) -> Result<(), String> {
+    if mode != "minimal" && mode != "all" {
+        return Err("Unknown tray display mode".to_string());
+    }
+
+    tray::set_display_mode(&app, &mode).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -207,57 +248,57 @@ pub fn disconnect_opencode_quota() -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub fn save_opencode_quota_session(
+pub async fn save_opencode_quota_session(
     app: tauri::AppHandle,
     cookie: String,
     workspace: String,
 ) -> Result<plugin_host::ProviderSnapshot, String> {
-    let cookie = cookie.trim();
-    let workspace_id = workspace_id_from_input(&workspace)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let cookie = cookie.trim();
+        let workspace_id = workspace_id_from_input(&workspace)?;
 
-    if cookie.is_empty() {
-        return Err("OpenCode cookie must not be empty".to_string());
-    }
+        if cookie.is_empty() {
+            return Err("OpenCode cookie must not be empty".to_string());
+        }
 
-    let session = secrets::OpenCodeQuotaSession {
-        cookie: cookie.to_string(),
-        workspace_id,
-    };
+        let session = secrets::OpenCodeQuotaSession {
+            cookie: cookie.to_string(),
+            workspace_id,
+        };
 
-    let quota_json =
-        opencode_quota::fetch_usage_summary_json(&session.cookie, &session.workspace_id)
-            .map_err(|error| error.to_string())?;
+        let quota_json =
+            opencode_quota::fetch_usage_summary_json(&session.cookie, &session.workspace_id)
+                .map_err(|error| error.to_string())?;
 
-    secrets::save_opencode_quota_session(&session).map_err(|error| error.to_string())?;
-    refresh_opencode_with_quota(app, Some(quota_json))
+        secrets::save_opencode_quota_session(&session).map_err(|error| error.to_string())?;
+        refresh_opencode_with_quota(app, quota_json)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
-pub fn refresh_opencode(app: tauri::AppHandle) -> Result<plugin_host::ProviderSnapshot, String> {
-    let quota_json = match secrets::load_opencode_quota_session() {
-        Some(session) => Some(
+pub async fn refresh_opencode(
+    app: tauri::AppHandle,
+) -> Result<plugin_host::ProviderSnapshot, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let session = secrets::load_opencode_quota_session()
+            .ok_or_else(|| "OpenCode Go limits are not linked".to_string())?;
+        let quota_json =
             opencode_quota::fetch_usage_summary_json(&session.cookie, &session.workspace_id)
-                .map_err(|error| error.to_string())?,
-        ),
-        None => None,
-    };
+                .map_err(|error| error.to_string())?;
 
-    refresh_opencode_with_quota(app, quota_json)
+        refresh_opencode_with_quota(app, quota_json)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 fn refresh_opencode_with_quota(
     app: tauri::AppHandle,
-    quota_json: Option<String>,
+    quota_json: String,
 ) -> Result<plugin_host::ProviderSnapshot, String> {
-    let spend_json = match opencode_db::read_spend_summary_json() {
-        Ok(json) => json,
-        Err(error) => return Err(error.to_string()),
-    };
-
-    let usage_json = match quota_json {
-        Some(quota_json) => format!("{{\"spend\":{spend_json},\"quota\":{quota_json}}}"),
-        None => format!("{{\"spend\":{spend_json}}}"),
-    };
+    let usage_json = format!("{{\"quota\":{quota_json}}}");
 
     let snapshot = plugin_host::run_opencode_provider(&OpenCodeHost { usage_json })
         .map_err(|error| error.to_string())?;

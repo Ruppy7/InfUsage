@@ -19,6 +19,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::list_saved_snapshots,
+            commands::hide_tray_window,
+            commands::request_tray_close,
+            commands::set_tray_popped_out,
+            commands::set_tray_display_mode,
             commands::refresh_claude,
             commands::refresh_codex,
             commands::save_deepseek_api_key,

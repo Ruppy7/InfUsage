@@ -42,7 +42,7 @@ cargo -V
 From the project folder:
 
 ```powershell
-cd C:\Users\rupes\Documents\InfUsage
+cd path\to\InfUsage
 git switch codex/tray-design-refresh
 npm install
 npm run tauri dev

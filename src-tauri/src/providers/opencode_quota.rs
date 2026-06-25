@@ -98,9 +98,9 @@ pub fn fetch_usage_summary_json(
 }
 
 pub fn parse_usage_from_page(page: &str) -> Result<UsageSummary, OpenCodeQuotaError> {
-    let rolling = window_for_label(page, "rollingUsage");
-    let weekly = window_for_label(page, "weeklyUsage");
-    let monthly = window_for_label(page, "monthlyUsage");
+    let rolling = window_for_labels(page, &["rollingUsage", "rollingLimit"]);
+    let weekly = window_for_labels(page, &["weeklyUsage", "weeklyLimit"]);
+    let monthly = window_for_labels(page, &["monthlyUsage", "monthlyLimit"]);
     let use_balance = bool_after(page, "useBalance");
 
     if rolling.is_none() && weekly.is_none() && monthly.is_none() {
@@ -115,34 +115,58 @@ pub fn parse_usage_from_page(page: &str) -> Result<UsageSummary, OpenCodeQuotaEr
     })
 }
 
-fn window_for_label(page: &str, label: &str) -> Option<UsageWindow> {
-    const LABELS: [&str; 3] = ["rollingUsage", "weeklyUsage", "monthlyUsage"];
-
-    let start = page.find(label)? + label.len();
-    let end = LABELS
+fn window_for_labels(page: &str, labels: &[&str]) -> Option<UsageWindow> {
+    labels
         .iter()
-        .filter(|other| **other != label)
-        .filter_map(|other| page[start..].find(other).map(|pos| start + pos))
-        .min()
-        .unwrap_or(page.len());
-    let slice = &page[start..end];
+        .find_map(|label| window_for_label(page, label))
+}
 
-    let window = UsageWindow {
-        status: string_after(slice, "status"),
-        reset_in_sec: number_after(slice, "resetInSec").and_then(|raw| raw.parse::<i64>().ok()),
-        usage_percent: number_after(slice, "usagePercent").and_then(|raw| raw.parse::<f64>().ok()),
-    };
+fn window_for_label(page: &str, label: &str) -> Option<UsageWindow> {
+    const LABELS: [&str; 6] = [
+        "rollingUsage",
+        "rollingLimit",
+        "weeklyUsage",
+        "weeklyLimit",
+        "monthlyUsage",
+        "monthlyLimit",
+    ];
 
-    if window == UsageWindow::default() {
-        None
-    } else {
-        Some(window)
+    let mut search_from = 0;
+    while let Some(pos) = page[search_from..].find(label) {
+        let start = search_from + pos + label.len();
+        let end = LABELS
+            .iter()
+            .filter(|other| **other != label)
+            .filter_map(|other| page[start..].find(other).map(|next_pos| start + next_pos))
+            .min()
+            .unwrap_or(page.len());
+        let slice = &page[start..end];
+
+        let window = UsageWindow {
+            status: string_after(slice, "status"),
+            reset_in_sec: number_after(slice, "resetInSec").and_then(|raw| raw.parse::<i64>().ok()),
+            usage_percent: number_after(slice, "usagePercent")
+                .and_then(|raw| raw.parse::<f64>().ok()),
+        };
+
+        if window != UsageWindow::default() {
+            return Some(window);
+        }
+
+        search_from = start;
     }
+
+    None
 }
 
 fn raw_value_after<'a>(slice: &'a str, key: &str) -> Option<&'a str> {
     let pos = slice.find(key)? + key.len();
     let after = slice[pos..].trim_start();
+    let after = after
+        .strip_prefix('"')
+        .or_else(|| after.strip_prefix('\''))
+        .unwrap_or(after)
+        .trim_start();
     let after = after.strip_prefix(':')?.trim_start();
     let end = after
         .find(|c| c == ',' || c == '}' || c == '\n' || c == ';')
@@ -223,6 +247,75 @@ mod tests {
                     usage_percent: Some(9.0),
                 }),
             }
+        );
+    }
+
+    #[test]
+    fn parses_limit_aliases() {
+        let page = r#"
+            {
+                useBalance: !1,
+                rollingLimit: { status: "ok", resetInSec: 18000, usagePercent: 1 },
+                weeklyLimit: { status: "ok", resetInSec: 451207, usagePercent: 2 },
+                monthlyLimit: { status: "ok", resetInSec: 1194765, usagePercent: 9 }
+            }
+        "#;
+
+        let summary = parse_usage_from_page(page).expect("limit aliases should parse");
+
+        assert_eq!(
+            summary.monthly,
+            Some(UsageWindow {
+                status: Some("ok".to_string()),
+                reset_in_sec: Some(1194765),
+                usage_percent: Some(9.0),
+            })
+        );
+    }
+
+    #[test]
+    fn parses_quoted_json_keys() {
+        let page = r#"
+            {
+                "useBalance": false,
+                "monthlyUsage": { "status": "ok", "resetInSec": 1194765, "usagePercent": 9 }
+            }
+        "#;
+
+        let summary = parse_usage_from_page(page).expect("quoted keys should parse");
+
+        assert_eq!(
+            summary.monthly,
+            Some(UsageWindow {
+                status: Some("ok".to_string()),
+                reset_in_sec: Some(1194765),
+                usage_percent: Some(9.0),
+            })
+        );
+    }
+
+    #[test]
+    fn skips_label_references_before_usage_window() {
+        let page = r#"
+            const labels = { monthlyUsage: "Monthly" };
+            $R[28]($R[18], $R[34] = {
+                monthlyUsage: $R[37] = {
+                    status: "ok",
+                    resetInSec: 1194765,
+                    usagePercent: 9
+                }
+            });
+        "#;
+
+        let summary = parse_usage_from_page(page).expect("later monthly window should parse");
+
+        assert_eq!(
+            summary.monthly,
+            Some(UsageWindow {
+                status: Some("ok".to_string()),
+                reset_in_sec: Some(1194765),
+                usage_percent: Some(9.0),
+            })
         );
     }
 

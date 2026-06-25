@@ -2,6 +2,8 @@
   "name": "infusage",
   "private": true,
   "version": "0.1.0",
+  "description": "Windows tray app for tracking AI inference usage and limits.",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
