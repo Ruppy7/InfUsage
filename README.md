@@ -48,7 +48,7 @@ https://opencode.ai/workspace/<your-workspace-id>/go
 
 The cookie is stored in Windows Credential Manager and used only by the Rust host to fetch quota fields. This may break if OpenCode changes the page shape or session behavior.
 
-A safer local fallback exists in `src-tauri/src/providers/opencode_db.rs`, but it only sees local device spend and is not wired into the current UI.
+Alternative approach: OpenCode also keeps local usage data in `opencode.db`. Reading that database avoids browser cookies and is a viable future fallback, but it only reflects usage from that local device/profile, so it is less accurate than authenticated workspace quota for users who switch between Windows, WSL, or other machines.
 
 ## Caveats
 

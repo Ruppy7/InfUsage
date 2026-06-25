@@ -10,11 +10,6 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             tray::create(app)?;
-            let _ = plugin_host::run_demo_provider(&plugin_host::InfUsageHost);
-            let _ = plugin_host::run_deepseek_provider(&plugin_host::InfUsageHost);
-            let _ = plugin_host::run_codex_provider(&plugin_host::InfUsageHost);
-            let _ = plugin_host::run_claude_provider(&plugin_host::InfUsageHost);
-            let _ = plugin_host::run_opencode_provider(&plugin_host::InfUsageHost);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

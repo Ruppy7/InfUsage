@@ -17,18 +17,6 @@ impl plugin_host::Host for OpenCodeHost {
         "InfUsage"
     }
 
-    fn claude_usage_json(&self) -> String {
-        "{}".to_string()
-    }
-
-    fn codex_usage_json(&self) -> String {
-        "{}".to_string()
-    }
-
-    fn deepseek_balance_json(&self) -> String {
-        "{}".to_string()
-    }
-
     fn opencode_usage_json(&self) -> String {
         self.usage_json.clone()
     }
@@ -43,20 +31,8 @@ impl plugin_host::Host for DeepSeekHost {
         "InfUsage"
     }
 
-    fn claude_usage_json(&self) -> String {
-        "{}".to_string()
-    }
-
-    fn codex_usage_json(&self) -> String {
-        "{}".to_string()
-    }
-
     fn deepseek_balance_json(&self) -> String {
         self.balance_json.clone()
-    }
-
-    fn opencode_usage_json(&self) -> String {
-        "{}".to_string()
     }
 }
 
@@ -69,20 +45,8 @@ impl plugin_host::Host for CodexHost {
         "InfUsage"
     }
 
-    fn claude_usage_json(&self) -> String {
-        "{}".to_string()
-    }
-
     fn codex_usage_json(&self) -> String {
         self.usage_json.clone()
-    }
-
-    fn deepseek_balance_json(&self) -> String {
-        "{}".to_string()
-    }
-
-    fn opencode_usage_json(&self) -> String {
-        "{}".to_string()
     }
 }
 
@@ -97,18 +61,6 @@ impl plugin_host::Host for ClaudeHost {
 
     fn claude_usage_json(&self) -> String {
         self.usage_json.clone()
-    }
-
-    fn codex_usage_json(&self) -> String {
-        "{}".to_string()
-    }
-
-    fn deepseek_balance_json(&self) -> String {
-        "{}".to_string()
-    }
-
-    fn opencode_usage_json(&self) -> String {
-        "{}".to_string()
     }
 }
 
@@ -256,6 +208,12 @@ pub async fn save_opencode_quota_session(
     tauri::async_runtime::spawn_blocking(move || {
         let cookie = cookie.trim();
         let workspace_id = workspace_id_from_input(&workspace)?;
+
+        // Tolerate a pasted "Cookie: ..." header line by dropping the label.
+        let cookie = cookie
+            .strip_prefix("Cookie:")
+            .map(str::trim)
+            .unwrap_or(cookie);
 
         if cookie.is_empty() {
             return Err("OpenCode cookie must not be empty".to_string());

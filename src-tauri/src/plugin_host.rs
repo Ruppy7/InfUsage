@@ -21,46 +21,19 @@ pub struct MetricLine {
 
 pub trait Host {
     fn app_name(&self) -> &'static str;
-    fn claude_usage_json(&self) -> String;
-    fn codex_usage_json(&self) -> String;
-    fn deepseek_balance_json(&self) -> String;
-    fn opencode_usage_json(&self) -> String;
-}
-
-pub struct InfUsageHost;
-
-impl Host for InfUsageHost {
-    fn app_name(&self) -> &'static str {
-        "InfUsage"
-    }
-
     fn claude_usage_json(&self) -> String {
-        r#"{"plan_type":null,"session_remaining_percent":null,"session_reset_at":null,"weekly_remaining_percent":null,"weekly_reset_at":null}"#.to_string()
+        "{}".to_string()
     }
-
     fn codex_usage_json(&self) -> String {
-        r#"{"plan_type":null,"session_remaining_percent":null,"session_reset_at":null,"weekly_remaining_percent":null,"weekly_reset_at":null,"credits_balance":null}"#.to_string()
+        "{}".to_string()
     }
-
     fn deepseek_balance_json(&self) -> String {
-        r#"{"is_available":false,"balance_infos":[]}"#.to_string()
+        "{}".to_string()
     }
-
     fn opencode_usage_json(&self) -> String {
-        r#"{"quota":null}"#.to_string()
+        "{}".to_string()
     }
 }
-
-const DEMO_PROVIDER: &str = r#"
-function probe(ctx) {
-  return {
-    providerId: "demo",
-    lines: [
-      { label: "Host", value: ctx.host.appName() }
-    ]
-  };
-}
-"#;
 
 const DEEPSEEK_PROVIDER: &str = r#"
 function probe(ctx) {
@@ -231,10 +204,6 @@ impl std::fmt::Display for PluginRunError {
 
 impl std::error::Error for PluginRunError {}
 
-pub fn run_demo_provider(host: &impl Host) -> Result<ProviderSnapshot, PluginRunError> {
-    run_provider(DEMO_PROVIDER, host)
-}
-
 pub fn run_deepseek_provider(host: &impl Host) -> Result<ProviderSnapshot, PluginRunError> {
     run_provider(DEEPSEEK_PROVIDER, host)
 }
@@ -365,22 +334,6 @@ mod tests {
     }
 
     #[test]
-    fn demo_provider_can_only_read_through_host() {
-        let snapshot = run_demo_provider(&InfUsageHost).expect("demo provider should run");
-
-        assert_eq!(
-            snapshot,
-            ProviderSnapshot {
-                provider_id: "demo".to_string(),
-                lines: vec![MetricLine {
-                    label: "Host".to_string(),
-                    value: "InfUsage".to_string(),
-                }],
-            }
-        );
-    }
-
-    #[test]
     fn rejects_empty_provider_id() {
         let error = run_provider(
             r#"
@@ -388,7 +341,7 @@ mod tests {
               return { providerId: "", lines: [] };
             }
             "#,
-            &InfUsageHost,
+            &FakeHost::default(),
         )
         .expect_err("empty provider id should fail");
 
@@ -403,7 +356,7 @@ mod tests {
               while (true) {}
             }
             "#,
-            &InfUsageHost,
+            &FakeHost::default(),
         )
         .expect_err("runaway plugin should fail");
 

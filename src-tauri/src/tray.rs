@@ -94,10 +94,9 @@ pub fn set_popped_out(app: &tauri::AppHandle, popped_out: bool) -> tauri::Result
     POPPED_OUT.store(popped_out, Ordering::Relaxed);
 
     if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
-        window.set_always_on_top(popped_out)?;
+        window.set_always_on_top(true)?;
         if !popped_out {
             position_near_bottom_right(&window);
-            window.set_always_on_top(true)?;
         }
     }
 
@@ -121,7 +120,8 @@ pub fn set_display_mode(app: &tauri::AppHandle, mode: &str) -> tauri::Result<()>
 }
 
 fn show_popup_window(window: &tauri::WebviewWindow) {
-    if !POPPED_OUT.load(Ordering::Relaxed) {
+    let popped_out = POPPED_OUT.load(Ordering::Relaxed);
+    if !popped_out {
         position_near_bottom_right(window);
     }
     let _ = window.unminimize();
