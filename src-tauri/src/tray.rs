@@ -1,5 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
+    image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, LogicalSize, Manager, PhysicalPosition, Position, Size, WindowEvent,
@@ -15,10 +16,11 @@ pub fn create(app: &tauri::App) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &quit])?;
+    let tray_icon = Image::new(include_bytes!("../icons/tray-color.rgba"), 32, 32);
 
     TrayIconBuilder::new()
-        .icon(app.default_window_icon().expect("missing app icon").clone())
-        .tooltip("InfUsage")
+        .icon(tray_icon)
+        .tooltip("LimitLens")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {

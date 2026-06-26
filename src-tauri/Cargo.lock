@@ -1813,19 +1813,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "infusage"
-version = "0.1.0"
-dependencies = [
- "keyring",
- "reqwest 0.12.28",
- "rquickjs",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
-]
-
-[[package]]
 name = "inout"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2035,6 +2022,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f02ab6bace2054fb888a3c16f990117b579d14a3088e472d63c6011fa185c9d3"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "limitlens"
+version = "0.1.0"
+dependencies = [
+ "keyring",
+ "reqwest 0.12.28",
+ "rquickjs",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
 ]
 
 [[package]]

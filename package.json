@@ -1,8 +1,8 @@
 {
-  "name": "infusage",
+  "name": "limitlens",
   "private": true,
   "version": "0.1.0",
-  "description": "Windows tray app for tracking AI inference usage and limits.",
+  "description": "Windows tray app for checking AI usage, limits, and balances.",
   "license": "MIT",
   "type": "module",
   "scripts": {

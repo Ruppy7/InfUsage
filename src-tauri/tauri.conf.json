@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "InfUsage",
+  "productName": "LimitLens",
   "version": "0.1.0",
-  "identifier": "app.infusage.desktop",
+  "identifier": "app.limitlens.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "InfUsage",
+        "title": "LimitLens",
         "width": 320,
         "height": 225,
         "resizable": false,

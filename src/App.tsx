@@ -21,6 +21,7 @@ import {
   Unplug,
 } from "lucide-react";
 import "./App.css";
+import limitLensLogo from "../src-tauri/icons/limitlens-logo.svg";
 import anthropicIcon from "./assets/providers/anthropic.svg";
 import deepseekIcon from "./assets/providers/deepseek.svg";
 import openaiIcon from "./assets/providers/openai.svg";
@@ -48,7 +49,7 @@ type DeepSeekKeySlot = {
 };
 
 type DisplayMode = "minimal" | "all";
-type ThemeMode = "system" | "light" | "dark";
+type ThemeMode = "system" | "light" | "dark" | "tokyo-night";
 type ProviderKey = "codex" | "claude" | "deepseek" | "opencode";
 type LifecycleState = "refreshing" | "fresh" | "stale" | "error" | "empty";
 type DisconnectedProviders = Partial<Record<ProviderKey, boolean>>;
@@ -71,42 +72,42 @@ const PROVIDERS: ProviderMeta[] = [
   { id: "codex", title: "Codex", icon: openaiIcon, note: "Authorizes via your local Codex login (~/.codex/auth.json). No key to manage.", emptyLabel: "Local login needed" },
   { id: "claude", title: "Claude", icon: anthropicIcon, note: "Authorizes via your local Claude Code login (~/.claude/.credentials.json). Limits apply across Claude products.", emptyLabel: "Local login needed" },
   { id: "deepseek", title: "DeepSeek", icon: deepseekIcon, note: "Add an API key to read your balance from the official /user/balance endpoint.", emptyLabel: "No API key" },
-  { id: "opencode", title: "OpenCode Go", icon: opencodeIcon, note: "Links an OpenCode console session to show Go limits. Local device DB spend is archived as optional project code.", emptyLabel: "Go limits not linked" },
+  { id: "opencode", title: "OpenCode Go", icon: opencodeIcon, note: "Links an OpenCode console session to show Go limits. Local device DB spend is a possible fallback idea, not current app code.", emptyLabel: "Go limits not linked" },
 ];
 
 const LOCAL_LOGIN_PROVIDERS: ProviderKey[] = ["codex", "claude"];
 
 function readDisplayMode() {
-  const value = readPersisted("infusage.displayMode", "minimal");
+  const value = readPersisted("limitlens.displayMode", "minimal");
   return value === "all" || value === "minimal" ? value : "minimal";
 }
 
 function readProviderKey() {
-  const value = readPersisted("infusage.selectedProvider", "codex");
+  const value = readPersisted("limitlens.selectedProvider", "codex");
   return PROVIDERS.some((provider) => provider.id === value) ? (value as ProviderKey) : "codex";
 }
 
 function readThemeMode() {
-  const value = readPersisted("infusage.themeMode", "system");
-  return value === "system" || value === "light" || value === "dark" ? value : "system";
+  const value = readPersisted("limitlens.themeMode", "system");
+  return value === "system" || value === "light" || value === "dark" || value === "tokyo-night" ? value : "system";
 }
 
 function readPoppedOut() {
-  return readPersisted("infusage.poppedOut", "false") === "true";
+  return readPersisted("limitlens.poppedOut", "false") === "true";
 }
 
 function readRefreshEnabled() {
-  return readPersisted("infusage.refreshEnabled", "false") === "true";
+  return readPersisted("limitlens.refreshEnabled", "false") === "true";
 }
 
 function readRefreshIntervalMinutes() {
-  const value = Number(readPersisted("infusage.refreshIntervalMinutes", String(DEFAULT_REFRESH_INTERVAL_MINUTES)));
+  const value = Number(readPersisted("limitlens.refreshIntervalMinutes", String(DEFAULT_REFRESH_INTERVAL_MINUTES)));
   if (!Number.isFinite(value)) return DEFAULT_REFRESH_INTERVAL_MINUTES;
   return Math.min(MAX_REFRESH_INTERVAL_MINUTES, Math.max(MIN_REFRESH_INTERVAL_MINUTES, Math.round(value)));
 }
 
 function readDisconnectedProviders(): DisconnectedProviders {
-  const value = readPersisted("infusage.disconnectedProviders", "{}");
+  const value = readPersisted("limitlens.disconnectedProviders", "{}");
   try {
     const parsed = JSON.parse(value) as DisconnectedProviders;
     return PROVIDERS.reduce<DisconnectedProviders>((next, provider) => {
@@ -127,8 +128,9 @@ function persist(key: string, value: string) {
 }
 
 function readPersisted(key: string, fallback: string) {
+  const legacyKey = key.replace("limitlens.", "infusage.");
   try {
-    return localStorage.getItem(key) ?? fallback;
+    return localStorage.getItem(key) ?? localStorage.getItem(legacyKey) ?? fallback;
   } catch {
     return fallback;
   }
@@ -147,14 +149,7 @@ function relativeAge(epochSeconds: number | undefined): string {
 }
 
 function BrandMark() {
-  return (
-    <svg className="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="1.5" y="1.5" width="21" height="21" rx="6" />
-      <rect x="6" y="12" width="3" height="6" rx="1.4" />
-      <rect x="10.5" y="8" width="3" height="10" rx="1.4" />
-      <circle cx="17" cy="7" r="2" />
-    </svg>
-  );
+  return <img className="brand-mark" src={limitLensLogo} alt="" aria-hidden="true" />;
 }
 
 function App() {
@@ -275,7 +270,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    persist("infusage.displayMode", displayMode);
+    persist("limitlens.displayMode", displayMode);
   }, [displayMode]);
 
   useEffect(() => {
@@ -283,28 +278,28 @@ function App() {
   }, [displayMode, settingsOpen]);
 
   useEffect(() => {
-    persist("infusage.selectedProvider", selectedProvider);
+    persist("limitlens.selectedProvider", selectedProvider);
   }, [selectedProvider]);
 
   useEffect(() => {
-    persist("infusage.themeMode", themeMode);
+    persist("limitlens.themeMode", themeMode);
   }, [themeMode]);
 
   useEffect(() => {
-    persist("infusage.poppedOut", String(poppedOut));
+    persist("limitlens.poppedOut", String(poppedOut));
     invoke("set_tray_popped_out", { poppedOut }).catch(() => {});
   }, [poppedOut]);
 
   useEffect(() => {
-    persist("infusage.disconnectedProviders", JSON.stringify(disconnectedProviders));
+    persist("limitlens.disconnectedProviders", JSON.stringify(disconnectedProviders));
   }, [disconnectedProviders]);
 
   useEffect(() => {
-    persist("infusage.refreshIntervalMinutes", String(refreshIntervalMinutes));
+    persist("limitlens.refreshIntervalMinutes", String(refreshIntervalMinutes));
   }, [refreshIntervalMinutes]);
 
   useEffect(() => {
-    persist("infusage.refreshEnabled", String(refreshEnabled));
+    persist("limitlens.refreshEnabled", String(refreshEnabled));
   }, [refreshEnabled]);
 
   useEffect(() => {
@@ -549,8 +544,8 @@ function App() {
         <div className="brand">
           <BrandMark />
           <div className="brand-text">
-            <h1>InfUsage</h1>
-            <p>Inference usage</p>
+            <h1>LimitLens</h1>
+            <p>Usage limits</p>
           </div>
         </div>
         <div className="header-actions">
@@ -847,6 +842,9 @@ function SettingsSheet(props: SettingsSheetProps) {
             </button>
             <button aria-pressed={props.themeMode === "light"} onClick={() => props.onChooseThemeMode("light")} type="button">
               Light
+            </button>
+            <button aria-pressed={props.themeMode === "tokyo-night"} onClick={() => props.onChooseThemeMode("tokyo-night")} type="button">
+              Tokyo
             </button>
           </div>
         </SettingsSection>

@@ -14,7 +14,7 @@ struct OpenCodeHost {
 
 impl plugin_host::Host for OpenCodeHost {
     fn app_name(&self) -> &'static str {
-        "InfUsage"
+        "LimitLens"
     }
 
     fn opencode_usage_json(&self) -> String {
@@ -28,7 +28,7 @@ struct DeepSeekHost {
 
 impl plugin_host::Host for DeepSeekHost {
     fn app_name(&self) -> &'static str {
-        "InfUsage"
+        "LimitLens"
     }
 
     fn deepseek_balance_json(&self) -> String {
@@ -42,7 +42,7 @@ struct CodexHost {
 
 impl plugin_host::Host for CodexHost {
     fn app_name(&self) -> &'static str {
-        "InfUsage"
+        "LimitLens"
     }
 
     fn codex_usage_json(&self) -> String {
@@ -56,7 +56,7 @@ struct ClaudeHost {
 
 impl plugin_host::Host for ClaudeHost {
     fn app_name(&self) -> &'static str {
-        "InfUsage"
+        "LimitLens"
     }
 
     fn claude_usage_json(&self) -> String {

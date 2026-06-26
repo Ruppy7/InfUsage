@@ -313,7 +313,7 @@ mod tests {
 
     impl Host for FakeHost {
         fn app_name(&self) -> &'static str {
-            "InfUsage"
+            "LimitLens"
         }
 
         fn claude_usage_json(&self) -> String {

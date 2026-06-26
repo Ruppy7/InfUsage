@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+// Keep the legacy service name so existing pre-release Credential Manager entries still work.
 const SERVICE: &str = "InfUsage";
 const DEEPSEEK_USER: &str = "deepseek-api-key";
 const OPENCODE_QUOTA_SESSION_USER: &str = "opencode-quota-session";

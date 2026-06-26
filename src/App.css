@@ -129,6 +129,34 @@
   --connected: #22c55e;
 }
 
+.panel[data-theme="tokyo-night"] {
+  color: #c0caf5;
+  font-family: Aptos, "Segoe UI", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --bg: #1a1b26;
+  --panel: #24283b;
+  --panel-border: #414868;
+  --card: #1f2335;
+  --card-border: #3b4261;
+  --hover: #292e42;
+  --plate: #1f2335;
+  --plate-border: #3b4261;
+  --logo-plate: #c0caf5;
+  --ink: #c0caf5;
+  --muted: #9aa5ce;
+  --faint: #565f89;
+  --line: #2b3047;
+  --accent: #7dcfff;
+  --accent-ink: #7aa2f7;
+  --accent-soft: rgba(125, 207, 255, 0.14);
+  --accent-border: rgba(125, 207, 255, 0.32);
+  --error: #f7768e;
+  --error-soft: rgba(247, 118, 142, 0.16);
+  --error-border: rgba(247, 118, 142, 0.34);
+  --okay: #9ece6a;
+  --connected: #9ece6a;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -219,26 +247,7 @@ input {
   width: 24px;
   height: 24px;
   flex: 0 0 auto;
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-}
-
-.brand-mark rect:first-child {
-  fill: var(--ink);
-  stroke: none;
-}
-
-.brand-mark circle {
-  fill: var(--accent);
-  stroke: none;
-}
-
-.brand-mark rect:nth-child(2),
-.brand-mark rect:nth-child(3) {
-  fill: var(--accent);
-  stroke: none;
+  border-radius: 6px;
 }
 
 .brand-text {
@@ -645,6 +654,13 @@ input:focus-visible,
   overflow-wrap: anywhere;
 }
 
+.panel[data-theme="tokyo-night"] .metric-copy strong,
+.panel[data-theme="tokyo-night"] .provider-plan,
+.panel[data-theme="tokyo-night"] .refresh-value {
+  font-family: "Cascadia Code", Consolas, "Courier New", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
 .metric-label em {
   min-width: 0;
   overflow: hidden;
@@ -774,7 +790,7 @@ input:focus-visible,
 }
 
 .theme-seg {
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(4, 1fr);
 }
 
 .seg button {

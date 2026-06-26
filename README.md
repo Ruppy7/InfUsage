@@ -1,6 +1,6 @@
-# InfUsage
+# LimitLens
 
-InfUsage is a Windows tray app for checking AI usage, limits, and balance without opening every provider dashboard.
+LimitLens is a Windows tray app for checking AI usage, limits, and balance without opening every provider dashboard.
 
 It is built with Tauri, React, TypeScript, and Rust. Provider credentials and session data are kept in Windows Credential Manager where possible, and the UI shows only sanitized usage summaries.
 
@@ -13,7 +13,7 @@ It is built with Tauri, React, TypeScript, and Rust. Provider credentials and se
 
 ## Usage
 
-For now, InfUsage is source-first. Clone the repo, install dependencies, and run it locally:
+For now, LimitLens is source-first. Clone the repo, install dependencies, and run it locally:
 
 ```powershell
 git clone https://github.com/Ruppy7/InfUsage.git
@@ -30,7 +30,7 @@ cd src-tauri
 cargo test
 ```
 
-InfUsage does not publish binaries or installers yet. Use the source workflow above until release packaging is ready.
+LimitLens does not publish binaries or installers yet. Use the source workflow above until release packaging is ready.
 
 ## OpenCode Go
 
@@ -43,7 +43,7 @@ OpenCode Go limits currently use an experimental cookie-backed flow:
 https://opencode.ai/workspace/<your-workspace-id>/go
 ```
 
-3. In InfUsage settings, paste either the workspace URL or the `wrk_...` id.
+3. In LimitLens settings, paste either the workspace URL or the `wrk_...` id.
 4. Paste the `Cookie` request header from that logged-in browser request.
 
 The cookie is stored in Windows Credential Manager and used only by the Rust host to fetch quota fields. This may break if OpenCode changes the page shape or session behavior.
