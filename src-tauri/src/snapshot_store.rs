@@ -3,11 +3,13 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs, io,
     path::PathBuf,
+    sync::Mutex,
     time::{SystemTime, UNIX_EPOCH},
 };
 use tauri::Manager;
 
 const SNAPSHOTS_FILE: &str = "snapshots.json";
+static SNAPSHOT_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SavedSnapshot {
@@ -69,6 +71,12 @@ pub fn save_latest(
     app: &tauri::AppHandle,
     snapshot: &ProviderSnapshot,
 ) -> Result<SavedSnapshot, SnapshotStoreError> {
+    let _guard = SNAPSHOT_LOCK.lock().map_err(|_| {
+        SnapshotStoreError::Io(io::Error::new(
+            io::ErrorKind::Other,
+            "snapshot storage lock poisoned",
+        ))
+    })?;
     let mut file = load_file(app)?;
     let saved = SavedSnapshot {
         provider_id: snapshot.provider_id.clone(),
@@ -83,6 +91,12 @@ pub fn save_latest(
 }
 
 pub fn load_all(app: &tauri::AppHandle) -> Result<Vec<SavedSnapshot>, SnapshotStoreError> {
+    let _guard = SNAPSHOT_LOCK.lock().map_err(|_| {
+        SnapshotStoreError::Io(io::Error::new(
+            io::ErrorKind::Other,
+            "snapshot storage lock poisoned",
+        ))
+    })?;
     Ok(load_file(app)?.latest)
 }
 
@@ -93,9 +107,13 @@ fn load_file(app: &tauri::AppHandle) -> Result<SnapshotFile, SnapshotStoreError>
         return Ok(SnapshotFile::default());
     }
 
-    match serde_json::from_slice(&fs::read(path)?)? {
-        SnapshotDiskFormat::Current(file) => Ok(file),
-        SnapshotDiskFormat::Legacy(latest) => Ok(SnapshotFile { latest }),
+    match serde_json::from_slice(&fs::read(&path)?) {
+        Ok(SnapshotDiskFormat::Current(file)) => Ok(file),
+        Ok(SnapshotDiskFormat::Legacy(latest)) => Ok(SnapshotFile { latest }),
+        Err(error) => {
+            quarantine_corrupt_file(&path)?;
+            Err(error.into())
+        }
     }
 }
 
@@ -108,6 +126,15 @@ fn write_file(app: &tauri::AppHandle, file: &SnapshotFile) -> Result<(), Snapsho
 
     fs::write(path, serde_json::to_vec_pretty(file)?)?;
     Ok(())
+}
+
+fn quarantine_corrupt_file(path: &PathBuf) -> Result<(), SnapshotStoreError> {
+    let bad_path = path.with_extension("json.bad");
+    match fs::rename(path, bad_path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
 }
 
 fn snapshots_path(app: &tauri::AppHandle) -> Result<PathBuf, SnapshotStoreError> {
@@ -167,5 +194,20 @@ mod tests {
         assert_eq!(snapshots.len(), 1);
         assert_eq!(snapshots[0].captured_at, 2);
         assert_eq!(snapshots[0].snapshot.lines[0].label, "New");
+    }
+
+    #[test]
+    fn corrupt_snapshot_file_can_be_quarantined() {
+        let dir = std::env::temp_dir().join(format!("limitlens-snapshot-test-{}", now_seconds()));
+        fs::create_dir_all(&dir).expect("test dir should be created");
+        let path = dir.join(SNAPSHOTS_FILE);
+        fs::write(&path, b"{ broken json").expect("corrupt file should be written");
+
+        quarantine_corrupt_file(&path).expect("corrupt file should quarantine");
+
+        assert!(!path.exists());
+        assert!(dir.join("snapshots.json.bad").exists());
+
+        let _ = fs::remove_dir_all(dir);
     }
 }

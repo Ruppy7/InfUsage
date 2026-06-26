@@ -122,7 +122,7 @@ pub async fn refresh_deepseek(
 
         let snapshot = plugin_host::run_deepseek_provider(&DeepSeekHost { balance_json })
             .map_err(|error| internal_error("DeepSeek", &error))?;
-        snapshot_store::save_latest(&app, &snapshot).map_err(|error| storage_error(&error))?;
+        let _ = snapshot_store::save_latest(&app, &snapshot);
         Ok(snapshot)
     })
     .await
@@ -137,7 +137,7 @@ pub async fn refresh_codex(app: tauri::AppHandle) -> Result<plugin_host::Provide
 
         let snapshot = plugin_host::run_codex_provider(&CodexHost { usage_json })
             .map_err(|error| internal_error("Codex", &error))?;
-        snapshot_store::save_latest(&app, &snapshot).map_err(|error| storage_error(&error))?;
+        let _ = snapshot_store::save_latest(&app, &snapshot);
         Ok(snapshot)
     })
     .await
@@ -155,7 +155,7 @@ pub async fn refresh_claude(
 
         let snapshot = plugin_host::run_claude_provider(&ClaudeHost { usage_json })
             .map_err(|error| internal_error("Claude", &error))?;
-        snapshot_store::save_latest(&app, &snapshot).map_err(|error| storage_error(&error))?;
+        let _ = snapshot_store::save_latest(&app, &snapshot);
         Ok(snapshot)
     })
     .await
@@ -177,7 +177,7 @@ fn cached_provider_plan(app: &tauri::AppHandle, provider_id: &str) -> Option<Str
 
 #[tauri::command]
 pub fn list_saved_snapshots(app: tauri::AppHandle) -> Result<Vec<SavedSnapshot>, String> {
-    snapshot_store::load_all(&app).map_err(|error| storage_error(&error))
+    Ok(snapshot_store::load_all(&app).unwrap_or_default())
 }
 
 #[tauri::command]
@@ -277,7 +277,7 @@ fn refresh_opencode_with_quota(
 
     let snapshot = plugin_host::run_opencode_provider(&OpenCodeHost { usage_json })
         .map_err(|error| internal_error("OpenCode Go", &error))?;
-    snapshot_store::save_latest(&app, &snapshot).map_err(|error| storage_error(&error))?;
+    let _ = snapshot_store::save_latest(&app, &snapshot);
     Ok(snapshot)
 }
 
@@ -301,10 +301,6 @@ fn provider_error(provider: &str, error: &impl std::fmt::Display) -> String {
 
 fn internal_error(provider: &str, _error: &impl std::fmt::Display) -> String {
     format!("{provider} data could not be prepared")
-}
-
-fn storage_error(_error: &impl std::fmt::Display) -> String {
-    "Local snapshot storage failed".to_string()
 }
 
 fn workspace_id_from_input(input: &str) -> Result<String, String> {
