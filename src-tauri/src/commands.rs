@@ -148,7 +148,9 @@ pub async fn refresh_claude(
     app: tauri::AppHandle,
 ) -> Result<plugin_host::ProviderSnapshot, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let usage_json = claude::fetch_usage_summary_json().map_err(|error| error.to_string())?;
+        let cached_plan = cached_provider_plan(&app, "claude");
+        let usage_json =
+            claude::fetch_usage_summary_json(cached_plan).map_err(|error| error.to_string())?;
 
         let snapshot = plugin_host::run_claude_provider(&ClaudeHost { usage_json })
             .map_err(|error| error.to_string())?;
@@ -157,6 +159,19 @@ pub async fn refresh_claude(
     })
     .await
     .map_err(|error| error.to_string())?
+}
+
+fn cached_provider_plan(app: &tauri::AppHandle, provider_id: &str) -> Option<String> {
+    snapshot_store::load_all(app)
+        .ok()?
+        .into_iter()
+        .find(|saved| saved.provider_id == provider_id)?
+        .snapshot
+        .lines
+        .into_iter()
+        .find(|line| line.label == "Plan")
+        .map(|line| line.value)
+        .filter(|value| !value.trim().is_empty())
 }
 
 #[tauri::command]

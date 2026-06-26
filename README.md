@@ -62,6 +62,12 @@ The cookie is stored in Windows Credential Manager and used only by the Rust hos
 
 Alternative approach: OpenCode also keeps local usage data in `opencode.db`. Reading that database avoids browser cookies and is a viable future fallback, but it only reflects usage from that local device/profile, so it is less accurate than authenticated workspace quota for users who switch between Windows, WSL, or other machines.
 
+## Claude Code on WSL
+
+LimitLens is a Windows-native app, so it reads Claude Code credentials from your Windows profile.
+
+If you normally use Claude Code inside WSL, sign in once from Windows Claude Code so Windows has its own credentials. Alternatively, copy your WSL Claude credentials into the matching Windows Claude profile folder. After that, refresh Claude in LimitLens.
+
 ## Caveats
 
 - Windows is the primary target.

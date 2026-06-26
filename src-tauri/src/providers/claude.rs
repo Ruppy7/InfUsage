@@ -4,11 +4,11 @@ use serde_json::Value;
 use std::{
     env, fs, io,
     path::{Path, PathBuf},
-    process::Command,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
+const PROFILE_URL: &str = "https://api.anthropic.com/api/oauth/profile";
 const REFRESH_URL: &str = "https://platform.claude.com/v1/oauth/token";
 const CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 const SCOPES: &str =
@@ -89,9 +89,10 @@ impl std::fmt::Display for ClaudeError {
 
 impl std::error::Error for ClaudeError {}
 
-pub fn fetch_usage_summary_json() -> Result<String, ClaudeError> {
+pub fn fetch_usage_summary_json(cached_plan: Option<String>) -> Result<String, ClaudeError> {
     let mut auth = load_auth()?;
     let client = Client::builder().timeout(REQUEST_TIMEOUT).build()?;
+    let cached_plan = cached_plan.filter(|value| !value.trim().is_empty());
 
     if needs_refresh(&auth.oauth) {
         refresh_auth(&client, &mut auth)?;
@@ -99,7 +100,7 @@ pub fn fetch_usage_summary_json() -> Result<String, ClaudeError> {
 
     if !has_profile_scope(&auth.oauth) {
         return Ok(serde_json::to_string(&UsageSummary {
-            plan_type: plan_label(&auth.oauth),
+            plan_type: plan_label(&auth.oauth).or(cached_plan),
             session_remaining_percent: None,
             session_reset_at: None,
             weekly_remaining_percent: None,
@@ -107,11 +108,18 @@ pub fn fetch_usage_summary_json() -> Result<String, ClaudeError> {
         })?);
     }
 
-    match fetch_usage_summary(&client, &auth.oauth)? {
+    let profile_plan = plan_label(&auth.oauth)
+        .or_else(|| cached_plan.clone())
+        .or_else(|| fetch_profile_plan(&client, &auth.oauth).ok().flatten());
+
+    match fetch_usage_summary(&client, &auth.oauth, profile_plan)? {
         FetchResult::Ok(summary) => Ok(serde_json::to_string(&summary)?),
         FetchResult::Unauthorized => {
             refresh_auth(&client, &mut auth)?;
-            match fetch_usage_summary(&client, &auth.oauth)? {
+            let profile_plan = plan_label(&auth.oauth)
+                .or(cached_plan)
+                .or_else(|| fetch_profile_plan(&client, &auth.oauth).ok().flatten());
+            match fetch_usage_summary(&client, &auth.oauth, profile_plan)? {
                 FetchResult::Ok(summary) => Ok(serde_json::to_string(&summary)?),
                 FetchResult::Unauthorized => Err(ClaudeError::Unauthorized),
             }
@@ -124,7 +132,11 @@ enum FetchResult {
     Unauthorized,
 }
 
-fn fetch_usage_summary(client: &Client, oauth: &ClaudeOauth) -> Result<FetchResult, ClaudeError> {
+fn fetch_usage_summary(
+    client: &Client,
+    oauth: &ClaudeOauth,
+    profile_plan: Option<String>,
+) -> Result<FetchResult, ClaudeError> {
     let response = client
         .get(USAGE_URL)
         .bearer_auth(&oauth.access_token)
@@ -141,7 +153,28 @@ fn fetch_usage_summary(client: &Client, oauth: &ClaudeOauth) -> Result<FetchResu
 
     let body = response.error_for_status()?.json::<Value>()?;
 
-    Ok(FetchResult::Ok(summarize_usage(&body, oauth)))
+    Ok(FetchResult::Ok(summarize_usage(&body, oauth, profile_plan)))
+}
+
+fn fetch_profile_plan(client: &Client, oauth: &ClaudeOauth) -> Result<Option<String>, ClaudeError> {
+    let response = client
+        .get(PROFILE_URL)
+        .bearer_auth(&oauth.access_token)
+        .header("Accept", "application/json")
+        .header("Content-Type", "application/json")
+        .header("anthropic-beta", "oauth-2025-04-20")
+        .header("User-Agent", "claude-code/2.1.69")
+        .send()?;
+
+    if matches!(
+        response.status(),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN
+    ) {
+        return Ok(None);
+    }
+
+    let body = response.error_for_status()?.json::<Value>()?;
+    Ok(profile_plan_label(&body))
 }
 
 fn refresh_auth(client: &Client, auth: &mut ClaudeAuth) -> Result<(), ClaudeError> {
@@ -221,11 +254,6 @@ fn auth_path() -> Option<PathBuf> {
         candidates.push(home.join(".claude").join(".credentials.json"));
     }
 
-    candidates.extend(wsl_home_candidates(&[".claude", ".credentials.json"]));
-    if let Some(path) = wsl_home_file(&[".claude", ".credentials.json"]) {
-        candidates.push(path);
-    }
-
     newest_existing(candidates)
 }
 
@@ -237,44 +265,6 @@ fn non_empty_env_path(key: &str) -> Option<PathBuf> {
             Some(Path::new(&value).to_path_buf())
         }
     })
-}
-
-fn wsl_home_candidates(parts: &[&str]) -> Vec<PathBuf> {
-    ["\\\\wsl.localhost", "\\\\wsl$"]
-        .into_iter()
-        .map(PathBuf::from)
-        .flat_map(|root| {
-            fs::read_dir(root)
-                .into_iter()
-                .flatten()
-                .filter_map(Result::ok)
-        })
-        .flat_map(|distro| {
-            let distro_path = distro.path();
-            let home_dirs = fs::read_dir(distro_path.join("home"))
-                .into_iter()
-                .flatten()
-                .filter_map(Result::ok)
-                .map(|entry| entry.path());
-            home_dirs.chain(std::iter::once(distro_path.join("root")))
-        })
-        .map(|home| parts.iter().fold(home, |path, part| path.join(part)))
-        .collect()
-}
-
-fn wsl_home_file(parts: &[&str]) -> Option<PathBuf> {
-    let linux_path = parts.join("/");
-    let output = Command::new("wsl.exe")
-        .args(["--cd", "~", "wslpath", "-w", &linux_path])
-        .output()
-        .ok()?;
-
-    if !output.status.success() {
-        return None;
-    }
-
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    (!path.is_empty()).then(|| PathBuf::from(path))
 }
 
 fn newest_existing(candidates: Vec<PathBuf>) -> Option<PathBuf> {
@@ -318,17 +308,50 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-fn summarize_usage(body: &Value, oauth: &ClaudeOauth) -> UsageSummary {
+fn summarize_usage(
+    body: &Value,
+    oauth: &ClaudeOauth,
+    profile_plan: Option<String>,
+) -> UsageSummary {
     let session_used_percent = nested_f64(body, &["five_hour", "utilization"]);
     let weekly_used_percent = nested_f64(body, &["seven_day", "utilization"]);
 
     UsageSummary {
-        plan_type: plan_label(oauth),
+        plan_type: plan_label(oauth).or(profile_plan),
         session_remaining_percent: session_used_percent.map(remaining_percent),
         session_reset_at: nested_string(body, &["five_hour", "resets_at"]),
         weekly_remaining_percent: weekly_used_percent.map(remaining_percent),
         weekly_reset_at: nested_string(body, &["seven_day", "resets_at"]),
     }
+}
+
+fn profile_plan_label(body: &Value) -> Option<String> {
+    let organization = body.get("organization")?;
+    let seat_tier = organization.get("seat_tier").and_then(Value::as_str);
+    let organization_type = organization
+        .get("organization_type")
+        .and_then(Value::as_str);
+
+    seat_tier
+        .and_then(plan_from_tier)
+        .or_else(|| organization_type.and_then(plan_from_tier))
+}
+
+fn plan_from_tier(value: &str) -> Option<String> {
+    let normalized = value.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        return None;
+    }
+    if normalized.contains("team") {
+        return Some("Team".to_string());
+    }
+    if normalized.contains("pro") {
+        return Some("Pro".to_string());
+    }
+    if normalized.contains("max") {
+        return Some("Max".to_string());
+    }
+    None
 }
 
 fn plan_label(oauth: &ClaudeOauth) -> Option<String> {
@@ -410,7 +433,7 @@ mod tests {
         });
 
         assert_eq!(
-            summarize_usage(&body, &oauth),
+            summarize_usage(&body, &oauth, None),
             UsageSummary {
                 plan_type: Some("pro 5x".to_string()),
                 session_remaining_percent: Some(75.0),
@@ -419,6 +442,37 @@ mod tests {
                 weekly_reset_at: Some("2099-01-07T00:00:00.000Z".to_string()),
             }
         );
+    }
+
+    #[test]
+    fn uses_profile_plan_when_credentials_do_not_have_plan() {
+        let oauth = ClaudeOauth {
+            access_token: "token".to_string(),
+            refresh_token: None,
+            expires_at: None,
+            subscription_type: None,
+            rate_limit_tier: None,
+            scopes: None,
+        };
+        let body = serde_json::json!({});
+
+        assert_eq!(
+            summarize_usage(&body, &oauth, Some("Team".to_string())).plan_type,
+            Some("Team".to_string())
+        );
+    }
+
+    #[test]
+    fn maps_claude_profile_tier_to_plan() {
+        let body = serde_json::json!({
+            "organization": {
+                "organization_type": "claude_team",
+                "seat_tier": "team_standard",
+                "rate_limit_tier": "default_raven"
+            }
+        });
+
+        assert_eq!(profile_plan_label(&body), Some("Team".to_string()));
     }
 
     #[test]
