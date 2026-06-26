@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate tag version
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart("v")
+          $package = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tauri = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $cargo = (Select-String -Path src-tauri/Cargo.toml -Pattern '^version = "([^"]+)"').Matches.Groups[1].Value
+          if ($package -ne $version -or $tauri -ne $version -or $cargo -ne $version) {
+            throw "Tag $version does not match package.json=$package, tauri.conf.json=$tauri, Cargo.toml=$cargo"
+          }
+
+      - name: Build unsigned installer
+        run: npm run tauri -- build
+
+      - name: Prepare artifacts
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart("v")
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item "src-tauri/target/release/bundle/nsis/LimitLens_${version}_x64-setup.exe" "release/LimitLens_${version}_x64-setup.exe"
+          Compress-Archive -Path "src-tauri/target/release/limitlens.exe" -DestinationPath "release/LimitLens_${version}_x64-portable.zip" -Force
+          Get-ChildItem release | Where-Object { $_.Name -ne "SHA256SUMS.txt" } | ForEach-Object {
+            $hash = Get-FileHash $_.FullName -Algorithm SHA256
+            "$($hash.Hash.ToLower())  $($_.Name)"
+          } | Set-Content release/SHA256SUMS.txt
+
+      - name: Publish draft release
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME release/* --draft --title "LimitLens $env:GITHUB_REF_NAME" --notes "Unsigned Windows build. Windows may show SmartScreen or unknown-publisher warnings."

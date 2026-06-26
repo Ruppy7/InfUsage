@@ -1,0 +1,46 @@
+name: Bug report
+description: Report something broken in LimitLens.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - General app
+        - Codex
+        - Claude
+        - OpenCode Go
+        - DeepSeek
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Do not include credentials, cookies, tokens, or personal account data.
+      placeholder: "1. Open tray\n2. Click refresh\n3. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: false
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Redact secrets before sharing logs or screenshots.
+    validations:
+      required: false

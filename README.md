@@ -11,9 +11,19 @@ It is built with Tauri, React, TypeScript, and Rust. Provider credentials and se
 - OpenCode Go: shows authenticated Go limits from the OpenCode workspace page.
 - DeepSeek: optional API balance check, showing USD balance.
 
-## Usage
+## Download
 
-For now, LimitLens is source-first. Clone the repo, install dependencies, and run it locally:
+LimitLens publishes Windows builds through [GitHub Releases](https://github.com/Ruppy7/InfUsage/releases).
+
+- Unsigned NSIS installer: `LimitLens_<version>_x64-setup.exe`
+- Portable zip: `LimitLens_<version>_x64-portable.zip`
+- Checksums: `SHA256SUMS.txt`
+
+The Windows builds are unsigned for now, so Windows may show SmartScreen or unknown-publisher warnings. If you prefer to verify the app yourself, build it from source.
+
+## Build from Source
+
+Clone the repo, install dependencies, and run it locally:
 
 ```powershell
 git clone https://github.com/Ruppy7/InfUsage.git
@@ -42,7 +52,7 @@ The unsigned NSIS installer is written to:
 src-tauri\target\release\bundle\nsis\
 ```
 
-Official signed release binaries are not published yet, so Windows may show a SmartScreen warning for locally built installers.
+Official signed release binaries are not published yet.
 
 ## OpenCode Go
 
@@ -73,8 +83,14 @@ If you normally use Claude Code inside WSL, sign in once from Windows Claude Cod
 - Windows is the primary target.
 - Provider usage endpoints can change without notice.
 - OpenCode Go support is experimental.
-- No official signed installers are published yet.
+- Windows installers are unsigned until code-signing is practical.
 - Provider logos and names belong to their respective owners.
+
+## Security and Privacy
+
+- See [SECURITY.md](SECURITY.md) for vulnerability reporting and security expectations.
+- See [PRIVACY.md](PRIVACY.md) for what stays local and what is sent to providers.
+- See [THREAT_MODEL.md](THREAT_MODEL.md) for the current lightweight threat model.
 
 ## Planned
 
