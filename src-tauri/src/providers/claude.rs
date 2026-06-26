@@ -6,6 +6,8 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
+#[cfg(windows)]
+use std::{ffi::OsStr, os::windows::ffi::OsStrExt};
 
 const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
 const PROFILE_URL: &str = "https://api.anthropic.com/api/oauth/profile";
@@ -30,6 +32,7 @@ struct ClaudeOauth {
 #[derive(Debug)]
 struct ClaudeAuth {
     path: PathBuf,
+    modified_at: Option<SystemTime>,
     json: Value,
     oauth: ClaudeOauth,
 }
@@ -74,9 +77,12 @@ impl From<serde_json::Error> for ClaudeError {
 impl std::fmt::Display for ClaudeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Http(error) => write!(formatter, "Claude HTTP error: {error}"),
-            Self::Io(error) => write!(formatter, "Claude credentials file error: {error}"),
-            Self::Json(error) => write!(formatter, "Claude JSON error: {error}"),
+            Self::Http(_) => write!(formatter, "Claude network request failed"),
+            Self::Io(_) => write!(
+                formatter,
+                "Claude credentials file could not be read or updated"
+            ),
+            Self::Json(_) => write!(formatter, "Claude data could not be parsed"),
             Self::MissingAuth => write!(formatter, "Claude credentials were not found"),
             Self::MissingTokens => write!(
                 formatter,
@@ -221,7 +227,16 @@ fn refresh_auth(client: &Client, auth: &mut ClaudeAuth) -> Result<(), ClaudeErro
     }
 
     auth.oauth = oauth_from_json(&auth.json)?;
-    fs::write(&auth.path, serde_json::to_vec(&auth.json)?)?;
+    if auth_file_changed(auth)? {
+        let json = serde_json::from_slice::<Value>(&fs::read(&auth.path)?)?;
+        auth.oauth = oauth_from_json(&json)?;
+        auth.json = json;
+        auth.modified_at = file_modified_at(&auth.path);
+        return Ok(());
+    }
+
+    write_json_atomic(&auth.path, &serde_json::to_vec(&auth.json)?)?;
+    auth.modified_at = file_modified_at(&auth.path);
 
     Ok(())
 }
@@ -233,10 +248,16 @@ fn load_auth() -> Result<ClaudeAuth, ClaudeError> {
         return Err(ClaudeError::MissingAuth);
     }
 
+    let modified_at = file_modified_at(&path);
     let json = serde_json::from_slice::<Value>(&fs::read(&path)?)?;
     let oauth = oauth_from_json(&json)?;
 
-    Ok(ClaudeAuth { path, json, oauth })
+    Ok(ClaudeAuth {
+        path,
+        modified_at,
+        json,
+        oauth,
+    })
 }
 
 fn auth_path() -> Option<PathBuf> {
@@ -265,6 +286,60 @@ fn non_empty_env_path(key: &str) -> Option<PathBuf> {
             Some(Path::new(&value).to_path_buf())
         }
     })
+}
+
+fn auth_file_changed(auth: &ClaudeAuth) -> Result<bool, ClaudeError> {
+    Ok(file_modified_at(&auth.path) != auth.modified_at)
+}
+
+fn file_modified_at(path: &Path) -> Option<SystemTime> {
+    fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .ok()
+}
+
+fn write_json_atomic(path: &Path, bytes: &[u8]) -> Result<(), ClaudeError> {
+    let tmp_path = path.with_extension("tmp");
+    fs::write(&tmp_path, bytes)?;
+    replace_file(&tmp_path, path)?;
+    Ok(())
+}
+
+#[cfg(windows)]
+fn replace_file(from: &Path, to: &Path) -> Result<(), ClaudeError> {
+    const MOVEFILE_REPLACE_EXISTING: u32 = 0x1;
+    const MOVEFILE_WRITE_THROUGH: u32 = 0x8;
+
+    extern "system" {
+        fn MoveFileExW(existing: *const u16, new: *const u16, flags: u32) -> i32;
+    }
+
+    fn wide(path: &Path) -> Vec<u16> {
+        OsStr::new(path)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect()
+    }
+
+    let from = wide(from);
+    let to = wide(to);
+    let moved = unsafe {
+        MoveFileExW(
+            from.as_ptr(),
+            to.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if moved == 0 {
+        return Err(ClaudeError::Io(io::Error::last_os_error()));
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn replace_file(from: &Path, to: &Path) -> Result<(), ClaudeError> {
+    fs::rename(from, to)?;
+    Ok(())
 }
 
 fn newest_existing(candidates: Vec<PathBuf>) -> Option<PathBuf> {

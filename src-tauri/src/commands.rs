@@ -108,21 +108,21 @@ pub async fn refresh_deepseek(
 
         let mut usd_remaining = 0.0;
 
-        for (slot, api_key) in api_keys {
+        for (_slot, api_key) in api_keys {
             let balance_json = deepseek::fetch_balance_json(&api_key)
-                .map_err(|error| format!("DeepSeek key {slot}: {error}"))?;
+                .map_err(|error| provider_error("DeepSeek", &error))?;
             let balance = deepseek::parse_balance_json(&balance_json)
-                .map_err(|error| format!("DeepSeek key {slot}: {error}"))?;
+                .map_err(|error| provider_error("DeepSeek", &error))?;
 
             usd_remaining += deepseek::usd_total_balance(&balance);
         }
 
-        let balance_json =
-            deepseek::usd_balance_json(usd_remaining).map_err(|error| error.to_string())?;
+        let balance_json = deepseek::usd_balance_json(usd_remaining)
+            .map_err(|error| provider_error("DeepSeek", &error))?;
 
         let snapshot = plugin_host::run_deepseek_provider(&DeepSeekHost { balance_json })
-            .map_err(|error| error.to_string())?;
-        snapshot_store::save_latest(&app, &snapshot).map_err(|error| error.to_string())?;
+            .map_err(|error| internal_error("DeepSeek", &error))?;
+        snapshot_store::save_latest(&app, &snapshot).map_err(|error| storage_error(&error))?;
         Ok(snapshot)
     })
     .await
@@ -132,11 +132,12 @@ pub async fn refresh_deepseek(
 #[tauri::command]
 pub async fn refresh_codex(app: tauri::AppHandle) -> Result<plugin_host::ProviderSnapshot, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let usage_json = codex::fetch_usage_summary_json().map_err(|error| error.to_string())?;
+        let usage_json =
+            codex::fetch_usage_summary_json().map_err(|error| provider_error("Codex", &error))?;
 
         let snapshot = plugin_host::run_codex_provider(&CodexHost { usage_json })
-            .map_err(|error| error.to_string())?;
-        snapshot_store::save_latest(&app, &snapshot).map_err(|error| error.to_string())?;
+            .map_err(|error| internal_error("Codex", &error))?;
+        snapshot_store::save_latest(&app, &snapshot).map_err(|error| storage_error(&error))?;
         Ok(snapshot)
     })
     .await
@@ -149,12 +150,12 @@ pub async fn refresh_claude(
 ) -> Result<plugin_host::ProviderSnapshot, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let cached_plan = cached_provider_plan(&app, "claude");
-        let usage_json =
-            claude::fetch_usage_summary_json(cached_plan).map_err(|error| error.to_string())?;
+        let usage_json = claude::fetch_usage_summary_json(cached_plan)
+            .map_err(|error| provider_error("Claude", &error))?;
 
         let snapshot = plugin_host::run_claude_provider(&ClaudeHost { usage_json })
-            .map_err(|error| error.to_string())?;
-        snapshot_store::save_latest(&app, &snapshot).map_err(|error| error.to_string())?;
+            .map_err(|error| internal_error("Claude", &error))?;
+        snapshot_store::save_latest(&app, &snapshot).map_err(|error| storage_error(&error))?;
         Ok(snapshot)
     })
     .await
@@ -176,7 +177,7 @@ fn cached_provider_plan(app: &tauri::AppHandle, provider_id: &str) -> Option<Str
 
 #[tauri::command]
 pub fn list_saved_snapshots(app: tauri::AppHandle) -> Result<Vec<SavedSnapshot>, String> {
-    snapshot_store::load_all(&app).map_err(|error| error.to_string())
+    snapshot_store::load_all(&app).map_err(|error| storage_error(&error))
 }
 
 #[tauri::command]
@@ -241,9 +242,10 @@ pub async fn save_opencode_quota_session(
 
         let quota_json =
             opencode_quota::fetch_usage_summary_json(&session.cookie, &session.workspace_id)
-                .map_err(|error| error.to_string())?;
+                .map_err(|error| provider_error("OpenCode Go", &error))?;
 
-        secrets::save_opencode_quota_session(&session).map_err(|error| error.to_string())?;
+        secrets::save_opencode_quota_session(&session)
+            .map_err(|_| "OpenCode Go session could not be saved".to_string())?;
         refresh_opencode_with_quota(app, quota_json)
     })
     .await
@@ -259,7 +261,7 @@ pub async fn refresh_opencode(
             .ok_or_else(|| "OpenCode Go limits are not linked".to_string())?;
         let quota_json =
             opencode_quota::fetch_usage_summary_json(&session.cookie, &session.workspace_id)
-                .map_err(|error| error.to_string())?;
+                .map_err(|error| provider_error("OpenCode Go", &error))?;
 
         refresh_opencode_with_quota(app, quota_json)
     })
@@ -274,9 +276,35 @@ fn refresh_opencode_with_quota(
     let usage_json = format!("{{\"quota\":{quota_json}}}");
 
     let snapshot = plugin_host::run_opencode_provider(&OpenCodeHost { usage_json })
-        .map_err(|error| error.to_string())?;
-    snapshot_store::save_latest(&app, &snapshot).map_err(|error| error.to_string())?;
+        .map_err(|error| internal_error("OpenCode Go", &error))?;
+    snapshot_store::save_latest(&app, &snapshot).map_err(|error| storage_error(&error))?;
     Ok(snapshot)
+}
+
+fn provider_error(provider: &str, error: &impl std::fmt::Display) -> String {
+    let message = error.to_string();
+    if message.contains("expired") || message.contains("sign in") {
+        return message;
+    }
+    if message.contains("not found")
+        || message.contains("not saved")
+        || message.contains("not connected")
+        || message.contains("does not contain")
+    {
+        return message;
+    }
+    if message.contains("recognizable usage block") {
+        return "OpenCode Go limits could not be read from the page".to_string();
+    }
+    format!("{provider} refresh failed")
+}
+
+fn internal_error(provider: &str, _error: &impl std::fmt::Display) -> String {
+    format!("{provider} data could not be prepared")
+}
+
+fn storage_error(_error: &impl std::fmt::Display) -> String {
+    "Local snapshot storage failed".to_string()
 }
 
 fn workspace_id_from_input(input: &str) -> Result<String, String> {

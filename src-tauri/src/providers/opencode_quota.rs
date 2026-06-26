@@ -51,9 +51,9 @@ impl From<serde_json::Error> for OpenCodeQuotaError {
 impl std::fmt::Display for OpenCodeQuotaError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Http(error) => write!(formatter, "OpenCode quota HTTP error: {error}"),
-            Self::Io(error) => write!(formatter, "OpenCode quota session error: {error}"),
-            Self::Json(error) => write!(formatter, "OpenCode quota JSON error: {error}"),
+            Self::Http(_) => write!(formatter, "OpenCode quota request failed"),
+            Self::Io(_) => write!(formatter, "OpenCode quota session could not be read"),
+            Self::Json(_) => write!(formatter, "OpenCode quota data could not be parsed"),
             Self::MissingSession => write!(formatter, "OpenCode quota session is not connected"),
             Self::Unauthorized => write!(
                 formatter,

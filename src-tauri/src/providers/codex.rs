@@ -4,8 +4,10 @@ use serde_json::Value;
 use std::{
     env, fs, io,
     path::{Path, PathBuf},
-    time::Duration,
+    time::{Duration, SystemTime},
 };
+#[cfg(windows)]
+use std::{ffi::OsStr, os::windows::ffi::OsStrExt};
 
 const USAGE_URL: &str = "https://chatgpt.com/backend-api/wham/usage";
 const REFRESH_URL: &str = "https://auth.openai.com/oauth/token";
@@ -22,6 +24,7 @@ struct CodexTokens {
 #[derive(Debug)]
 struct CodexAuth {
     path: PathBuf,
+    modified_at: Option<SystemTime>,
     json: Value,
     tokens: CodexTokens,
 }
@@ -67,9 +70,9 @@ impl From<serde_json::Error> for CodexError {
 impl std::fmt::Display for CodexError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Http(error) => write!(formatter, "Codex HTTP error: {error}"),
-            Self::Io(error) => write!(formatter, "Codex auth file error: {error}"),
-            Self::Json(error) => write!(formatter, "Codex JSON error: {error}"),
+            Self::Http(_) => write!(formatter, "Codex network request failed"),
+            Self::Io(_) => write!(formatter, "Codex auth file could not be read or updated"),
+            Self::Json(_) => write!(formatter, "Codex data could not be parsed"),
             Self::MissingAuth => write!(formatter, "Codex auth.json was not found"),
             Self::MissingTokens => {
                 write!(formatter, "Codex auth.json does not contain login tokens")
@@ -169,7 +172,16 @@ fn refresh_auth(client: &Client, auth: &mut CodexAuth) -> Result<(), CodexError>
     }
 
     auth.tokens = tokens_from_json(&auth.json)?;
-    fs::write(&auth.path, serde_json::to_vec_pretty(&auth.json)?)?;
+    if auth_file_changed(auth)? {
+        let json = serde_json::from_slice::<Value>(&fs::read(&auth.path)?)?;
+        auth.tokens = tokens_from_json(&json)?;
+        auth.json = json;
+        auth.modified_at = file_modified_at(&auth.path);
+        return Ok(());
+    }
+
+    write_json_atomic(&auth.path, &serde_json::to_vec_pretty(&auth.json)?)?;
+    auth.modified_at = file_modified_at(&auth.path);
 
     Ok(())
 }
@@ -180,13 +192,73 @@ fn load_auth() -> Result<CodexAuth, CodexError> {
             continue;
         }
 
+        let modified_at = file_modified_at(&path);
         let json = serde_json::from_slice::<Value>(&fs::read(&path)?)?;
         let tokens = tokens_from_json(&json)?;
 
-        return Ok(CodexAuth { path, json, tokens });
+        return Ok(CodexAuth {
+            path,
+            modified_at,
+            json,
+            tokens,
+        });
     }
 
     Err(CodexError::MissingAuth)
+}
+
+fn auth_file_changed(auth: &CodexAuth) -> Result<bool, CodexError> {
+    Ok(file_modified_at(&auth.path) != auth.modified_at)
+}
+
+fn file_modified_at(path: &Path) -> Option<SystemTime> {
+    fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .ok()
+}
+
+fn write_json_atomic(path: &Path, bytes: &[u8]) -> Result<(), CodexError> {
+    let tmp_path = path.with_extension("tmp");
+    fs::write(&tmp_path, bytes)?;
+    replace_file(&tmp_path, path)?;
+    Ok(())
+}
+
+#[cfg(windows)]
+fn replace_file(from: &Path, to: &Path) -> Result<(), CodexError> {
+    const MOVEFILE_REPLACE_EXISTING: u32 = 0x1;
+    const MOVEFILE_WRITE_THROUGH: u32 = 0x8;
+
+    extern "system" {
+        fn MoveFileExW(existing: *const u16, new: *const u16, flags: u32) -> i32;
+    }
+
+    fn wide(path: &Path) -> Vec<u16> {
+        OsStr::new(path)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect()
+    }
+
+    let from = wide(from);
+    let to = wide(to);
+    let moved = unsafe {
+        MoveFileExW(
+            from.as_ptr(),
+            to.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if moved == 0 {
+        return Err(CodexError::Io(io::Error::last_os_error()));
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn replace_file(from: &Path, to: &Path) -> Result<(), CodexError> {
+    fs::rename(from, to)?;
+    Ok(())
 }
 
 fn auth_paths() -> Vec<PathBuf> {

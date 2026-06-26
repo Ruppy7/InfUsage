@@ -130,7 +130,17 @@ function persist(key: string, value: string) {
 function readPersisted(key: string, fallback: string) {
   const legacyKey = key.replace("limitlens.", "infusage.");
   try {
-    return localStorage.getItem(key) ?? localStorage.getItem(legacyKey) ?? fallback;
+    const currentValue = localStorage.getItem(key);
+    if (currentValue !== null) return currentValue;
+
+    const legacyValue = localStorage.getItem(legacyKey);
+    if (legacyValue !== null) {
+      localStorage.setItem(key, legacyValue);
+      localStorage.removeItem(legacyKey);
+      return legacyValue;
+    }
+
+    return fallback;
   } catch {
     return fallback;
   }
@@ -1038,7 +1048,7 @@ function SettingsSection({ title, children }: { title: string; children: ReactNo
 function metricParts(line: MetricLine) {
   const percent = percentFromValue(line.value);
   const reset = resetFromValue(line.value);
-  const percentText = percent === null ? null : `${trimNumber(percent)}%`;
+  const percentText = percent === null ? null : `${percent}%`;
   const value = percentText ? line.value.replace(/.*?(\d+(?:\.\d+)?)%.*/, "$1%") : line.value;
 
   return {
@@ -1083,10 +1093,6 @@ function resetFromValue(value: string) {
   }
 
   return `Resets in ${durationText(Math.max(0, Math.floor((resetAt.getTime() - now.getTime()) / 1000)))}`;
-}
-
-function trimNumber(value: number) {
-  return Number.isInteger(value) ? String(value) : String(value);
 }
 
 function durationText(seconds: number) {

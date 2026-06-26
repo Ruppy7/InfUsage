@@ -6,6 +6,7 @@ const PLUGIN_TIMEOUT: Duration = Duration::from_millis(250);
 const PLUGIN_MEMORY_LIMIT_BYTES: usize = 4 * 1024 * 1024;
 const PLUGIN_STACK_LIMIT_BYTES: usize = 256 * 1024;
 const MAX_LINES: usize = 16;
+const MAX_METRIC_TEXT_CHARS: usize = 256;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct ProviderSnapshot {
@@ -33,6 +34,14 @@ pub trait Host {
     fn opencode_usage_json(&self) -> String {
         "{}".to_string()
     }
+}
+
+#[derive(Clone, Copy, Default)]
+struct HostCapabilities {
+    claude: bool,
+    codex: bool,
+    deepseek: bool,
+    opencode: bool,
 }
 
 const DEEPSEEK_PROVIDER: &str = r#"
@@ -205,22 +214,68 @@ impl std::fmt::Display for PluginRunError {
 impl std::error::Error for PluginRunError {}
 
 pub fn run_deepseek_provider(host: &impl Host) -> Result<ProviderSnapshot, PluginRunError> {
-    run_provider(DEEPSEEK_PROVIDER, host)
+    run_provider_with_capabilities(
+        DEEPSEEK_PROVIDER,
+        host,
+        HostCapabilities {
+            deepseek: true,
+            ..HostCapabilities::default()
+        },
+    )
 }
 
 pub fn run_codex_provider(host: &impl Host) -> Result<ProviderSnapshot, PluginRunError> {
-    run_provider(CODEX_PROVIDER, host)
+    run_provider_with_capabilities(
+        CODEX_PROVIDER,
+        host,
+        HostCapabilities {
+            codex: true,
+            ..HostCapabilities::default()
+        },
+    )
 }
 
 pub fn run_claude_provider(host: &impl Host) -> Result<ProviderSnapshot, PluginRunError> {
-    run_provider(CLAUDE_PROVIDER, host)
+    run_provider_with_capabilities(
+        CLAUDE_PROVIDER,
+        host,
+        HostCapabilities {
+            claude: true,
+            ..HostCapabilities::default()
+        },
+    )
 }
 
 pub fn run_opencode_provider(host: &impl Host) -> Result<ProviderSnapshot, PluginRunError> {
-    run_provider(OPENCODE_PROVIDER, host)
+    run_provider_with_capabilities(
+        OPENCODE_PROVIDER,
+        host,
+        HostCapabilities {
+            opencode: true,
+            ..HostCapabilities::default()
+        },
+    )
 }
 
+#[cfg(test)]
 pub fn run_provider(source: &str, host: &impl Host) -> Result<ProviderSnapshot, PluginRunError> {
+    run_provider_with_capabilities(
+        source,
+        host,
+        HostCapabilities {
+            claude: true,
+            codex: true,
+            deepseek: true,
+            opencode: true,
+        },
+    )
+}
+
+fn run_provider_with_capabilities(
+    source: &str,
+    host: &impl Host,
+    capabilities: HostCapabilities,
+) -> Result<ProviderSnapshot, PluginRunError> {
     let runtime = Runtime::new()?;
     runtime.set_memory_limit(PLUGIN_MEMORY_LIMIT_BYTES);
     runtime.set_max_stack_size(PLUGIN_STACK_LIMIT_BYTES);
@@ -240,22 +295,30 @@ pub fn run_provider(source: &str, host: &impl Host) -> Result<ProviderSnapshot, 
     context.with(|ctx| -> Result<ProviderSnapshot, PluginRunError> {
         let host = Object::new(ctx.clone())?;
         host.set("appName", Func::new(move || app_name.clone()))?;
-        host.set(
-            "claudeUsageJson",
-            Func::new(move || claude_usage_json.clone()),
-        )?;
-        host.set(
-            "codexUsageJson",
-            Func::new(move || codex_usage_json.clone()),
-        )?;
-        host.set(
-            "deepseekBalanceJson",
-            Func::new(move || deepseek_balance_json.clone()),
-        )?;
-        host.set(
-            "opencodeUsageJson",
-            Func::new(move || opencode_usage_json.clone()),
-        )?;
+        if capabilities.claude {
+            host.set(
+                "claudeUsageJson",
+                Func::new(move || claude_usage_json.clone()),
+            )?;
+        }
+        if capabilities.codex {
+            host.set(
+                "codexUsageJson",
+                Func::new(move || codex_usage_json.clone()),
+            )?;
+        }
+        if capabilities.deepseek {
+            host.set(
+                "deepseekBalanceJson",
+                Func::new(move || deepseek_balance_json.clone()),
+            )?;
+        }
+        if capabilities.opencode {
+            host.set(
+                "opencodeUsageJson",
+                Func::new(move || opencode_usage_json.clone()),
+            )?;
+        }
 
         let plugin_context = Object::new(ctx.clone())?;
         plugin_context.set("host", host)?;
@@ -282,8 +345,8 @@ pub fn run_provider(source: &str, host: &impl Host) -> Result<ProviderSnapshot, 
             .iter::<Object>()
             .map(|line| {
                 let line = line?;
-                let label: String = line.get("label")?;
-                let value: String = line.get("value")?;
+                let label = sanitize_metric_text(&line.get::<_, String>("label")?);
+                let value = sanitize_metric_text(&line.get::<_, String>("value")?);
 
                 if label.trim().is_empty() {
                     return Err(PluginRunError::InvalidOutput(
@@ -297,6 +360,16 @@ pub fn run_provider(source: &str, host: &impl Host) -> Result<ProviderSnapshot, 
 
         Ok(ProviderSnapshot { provider_id, lines })
     })
+}
+
+fn sanitize_metric_text(value: &str) -> String {
+    value
+        .chars()
+        .filter(|character| !character.is_control() || matches!(character, '\n' | '\r' | '\t'))
+        .take(MAX_METRIC_TEXT_CHARS)
+        .collect::<String>()
+        .trim()
+        .to_string()
 }
 
 #[cfg(test)]
@@ -361,6 +434,39 @@ mod tests {
         .expect_err("runaway plugin should fail");
 
         assert!(matches!(error, PluginRunError::Runtime(_)));
+    }
+
+    #[test]
+    fn scoped_provider_does_not_expose_other_provider_data() {
+        let host = FakeHost {
+            codex_usage_json: r#"{"plan_type":"secret"}"#.to_string(),
+            deepseek_balance_json: r#"{"balance_infos":[]}"#.to_string(),
+            ..Default::default()
+        };
+
+        let snapshot = run_deepseek_provider(&host).expect("DeepSeek plugin should run");
+
+        assert_eq!(snapshot.provider_id, "deepseek");
+        assert_eq!(snapshot.lines.len(), 1);
+    }
+
+    #[test]
+    fn metric_text_is_sanitized_before_return() {
+        let snapshot = run_provider(
+            r#"
+            function probe(ctx) {
+              return {
+                providerId: "test",
+                lines: [{ label: " Name\u0000 ", value: "x".repeat(300) }]
+              };
+            }
+            "#,
+            &FakeHost::default(),
+        )
+        .expect("plugin should run");
+
+        assert_eq!(snapshot.lines[0].label, "Name");
+        assert_eq!(snapshot.lines[0].value.len(), MAX_METRIC_TEXT_CHARS);
     }
 
     #[test]

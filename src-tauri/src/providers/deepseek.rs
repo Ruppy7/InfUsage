@@ -39,8 +39,8 @@ impl From<serde_json::Error> for DeepSeekError {
 impl std::fmt::Display for DeepSeekError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Http(error) => write!(formatter, "DeepSeek HTTP error: {error}"),
-            Self::Json(error) => write!(formatter, "DeepSeek JSON error: {error}"),
+            Self::Http(_) => write!(formatter, "DeepSeek network request failed"),
+            Self::Json(_) => write!(formatter, "DeepSeek data could not be parsed"),
         }
     }
 }
