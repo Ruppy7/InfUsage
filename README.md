@@ -30,7 +30,19 @@ cd src-tauri
 cargo test
 ```
 
-LimitLens does not publish binaries or installers yet. Use the source workflow above until release packaging is ready.
+Build a local Windows installer:
+
+```powershell
+npm run tauri -- build
+```
+
+The unsigned NSIS installer is written to:
+
+```text
+src-tauri\target\release\bundle\nsis\
+```
+
+Official signed release binaries are not published yet, so Windows may show a SmartScreen warning for locally built installers.
 
 ## OpenCode Go
 
@@ -55,7 +67,7 @@ Alternative approach: OpenCode also keeps local usage data in `opencode.db`. Rea
 - Windows is the primary target.
 - Provider usage endpoints can change without notice.
 - OpenCode Go support is experimental.
-- No official binaries or signed installers are published yet.
+- No official signed installers are published yet.
 - Provider logos and names belong to their respective owners.
 
 ## Planned
