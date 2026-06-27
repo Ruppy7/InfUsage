@@ -4,6 +4,17 @@ LimitLens is a Windows tray app for checking AI usage, limits, and balance witho
 
 It is built with Tauri, React, TypeScript, and Rust. Provider credentials and session data are kept in Windows Credential Manager where possible, and the UI shows only sanitized usage summaries.
 
+## Screenshots
+
+<p align="center">
+  <img src="assets/screenshots/dashboard.png" alt="LimitLens dashboard showing provider usage cards" width="420">
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/Focus-tray.png" alt="LimitLens focus view for Codex" width="360">
+  <img src="assets/screenshots/Focus-tray-dark.png" alt="LimitLens focus view for OpenCode Go" width="360">
+</p>
+
 ## Providers
 
 - OpenAI Codex: reads local Codex auth and shows quota/reset summary.
