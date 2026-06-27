@@ -1,18 +1,33 @@
-# LimitLens
+<p align="center">
+  <img src="src-tauri/icons/limitlens-logo.svg" alt="LimitLens logo" width="84">
+</p>
 
-LimitLens is a Windows tray app for checking AI usage, limits, and balance without opening every provider dashboard.
+<h1 align="center">LimitLens</h1>
+
+<p align="center">
+  A Windows tray app for checking AI usage, limits, and balances without opening every provider dashboard.
+</p>
+
+<p align="center">
+  <a href="#download">Download</a> ·
+  <a href="#providers">Providers</a> ·
+  <a href="#build-from-source">Build from source</a> ·
+  <a href="#security-and-privacy">Security</a>
+</p>
+
+---
 
 It is built with Tauri, React, TypeScript, and Rust. Provider credentials and session data are kept in Windows Credential Manager where possible, and the UI shows only sanitized usage summaries.
 
 ## Screenshots
 
 <p align="center">
-  <img src="assets/screenshots/dashboard.png" alt="LimitLens dashboard showing provider usage cards" width="420">
+  <img src="assets/screenshots/dashboard.png" alt="LimitLens dashboard showing provider usage cards" width="460">
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/Focus-tray.png" alt="LimitLens focus view for Codex" width="360">
-  <img src="assets/screenshots/Focus-tray-dark.png" alt="LimitLens focus view for OpenCode Go" width="360">
+  <img src="assets/screenshots/Focus-tray.png" alt="LimitLens focus view for Codex" width="380">
+  <img src="assets/screenshots/Focus-tray-dark.png" alt="LimitLens focus view for OpenCode Go" width="380">
 </p>
 
 ## Providers
@@ -83,11 +98,11 @@ The cookie is stored in Windows Credential Manager and used only by the Rust hos
 
 Alternative approach: OpenCode also keeps local usage data in `opencode.db`. Reading that database avoids browser cookies and is a viable future fallback, but it only reflects usage from that local device/profile, so it is less accurate than authenticated workspace quota for users who switch between Windows, WSL, or other machines.
 
-## Claude Code on WSL
+## WSL
 
-LimitLens is a Windows-native app, so it reads Claude Code credentials from your Windows profile.
+LimitLens is a Windows-native app, so it reads provider credentials from your Windows profile.
 
-If you normally use Claude Code inside WSL, sign in once from Windows Claude Code so Windows has its own credentials. Alternatively, copy your WSL Claude credentials into the matching Windows Claude profile folder. After that, refresh Claude in LimitLens.
+If you normally use provider CLIs inside WSL, sign in once from Windows so Windows has its own credentials. Alternatively, copy the relevant WSL credentials into the matching Windows profile folder. After that, refresh the provider in LimitLens.
 
 ## Caveats
 

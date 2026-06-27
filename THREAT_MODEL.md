@@ -33,7 +33,7 @@ This is a lightweight security model for LimitLens.
 - Provider output is normalized into small metric lines.
 - Plugin runtime has timeout, memory, stack, and output limits.
 - Latest snapshots store sanitized summaries only.
-- GitHub Actions release artifacts will include SHA256 checksums.
+- GitHub Actions release artifacts include SHA256 checksums.
 
 ## Non-Goals For Now
 
