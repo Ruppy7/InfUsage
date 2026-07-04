@@ -2,12 +2,12 @@ use reqwest::{blocking::Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
-    env, fs, io,
-    path::{Path, PathBuf},
+    fs, io,
+    path::PathBuf,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-#[cfg(windows)]
-use std::{ffi::OsStr, os::windows::ffi::OsStrExt};
+
+use super::util::{file_modified_at, non_empty_env_path, write_json_atomic};
 
 const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
 const PROFILE_URL: &str = "https://api.anthropic.com/api/oauth/profile";
@@ -44,6 +44,8 @@ pub struct UsageSummary {
     pub session_reset_at: Option<String>,
     pub weekly_remaining_percent: Option<f64>,
     pub weekly_reset_at: Option<String>,
+    pub fable_remaining_percent: Option<f64>,
+    pub fable_reset_at: Option<String>,
 }
 
 #[derive(Debug)]
@@ -113,6 +115,8 @@ pub fn fetch_usage_summary_json(cached_plan: Option<String>) -> Result<String, C
             session_reset_at: None,
             weekly_remaining_percent: None,
             weekly_reset_at: None,
+            fable_remaining_percent: None,
+            fable_reset_at: None,
         })?);
     }
 
@@ -289,68 +293,8 @@ fn auth_path() -> Option<PathBuf> {
     newest_existing(candidates)
 }
 
-fn non_empty_env_path(key: &str) -> Option<PathBuf> {
-    env::var_os(key).and_then(|value| {
-        if value.is_empty() {
-            None
-        } else {
-            Some(Path::new(&value).to_path_buf())
-        }
-    })
-}
-
 fn auth_file_changed(auth: &ClaudeAuth) -> Result<bool, ClaudeError> {
     Ok(file_modified_at(&auth.path) != auth.modified_at)
-}
-
-fn file_modified_at(path: &Path) -> Option<SystemTime> {
-    fs::metadata(path)
-        .and_then(|metadata| metadata.modified())
-        .ok()
-}
-
-fn write_json_atomic(path: &Path, bytes: &[u8]) -> Result<(), ClaudeError> {
-    let tmp_path = path.with_extension("tmp");
-    fs::write(&tmp_path, bytes)?;
-    replace_file(&tmp_path, path)?;
-    Ok(())
-}
-
-#[cfg(windows)]
-fn replace_file(from: &Path, to: &Path) -> Result<(), ClaudeError> {
-    const MOVEFILE_REPLACE_EXISTING: u32 = 0x1;
-    const MOVEFILE_WRITE_THROUGH: u32 = 0x8;
-
-    extern "system" {
-        fn MoveFileExW(existing: *const u16, new: *const u16, flags: u32) -> i32;
-    }
-
-    fn wide(path: &Path) -> Vec<u16> {
-        OsStr::new(path)
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect()
-    }
-
-    let from = wide(from);
-    let to = wide(to);
-    let moved = unsafe {
-        MoveFileExW(
-            from.as_ptr(),
-            to.as_ptr(),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-        )
-    };
-    if moved == 0 {
-        return Err(ClaudeError::Io(io::Error::last_os_error()));
-    }
-    Ok(())
-}
-
-#[cfg(not(windows))]
-fn replace_file(from: &Path, to: &Path) -> Result<(), ClaudeError> {
-    fs::rename(from, to)?;
-    Ok(())
 }
 
 fn newest_existing(candidates: Vec<PathBuf>) -> Option<PathBuf> {
@@ -401,6 +345,7 @@ fn summarize_usage(
 ) -> UsageSummary {
     let session_used_percent = nested_f64(body, &["five_hour", "utilization"]);
     let weekly_used_percent = nested_f64(body, &["seven_day", "utilization"]);
+    let fable_limit = find_named_limit(body, &["fable"]);
 
     UsageSummary {
         plan_type: plan_label(oauth).or(profile_plan),
@@ -408,6 +353,8 @@ fn summarize_usage(
         session_reset_at: nested_string(body, &["five_hour", "resets_at"]),
         weekly_remaining_percent: weekly_used_percent.map(remaining_percent),
         weekly_reset_at: nested_string(body, &["seven_day", "resets_at"]),
+        fable_remaining_percent: fable_limit.and_then(limit_remaining_percent),
+        fable_reset_at: fable_limit.and_then(limit_reset_at),
     }
 }
 
@@ -487,6 +434,100 @@ fn nested_string(value: &Value, path: &[&str]) -> Option<String> {
         .map(str::to_string)
 }
 
+fn find_named_limit<'a>(value: &'a Value, aliases: &[&str]) -> Option<&'a Value> {
+    match value {
+        Value::Object(object) => {
+            if value_contains_alias(value, aliases) && limit_remaining_percent(value).is_some() {
+                return Some(value);
+            }
+            for (key, child) in object {
+                if aliases
+                    .iter()
+                    .any(|alias| key.to_ascii_lowercase().contains(alias))
+                    && limit_remaining_percent(child).is_some()
+                {
+                    return Some(child);
+                }
+                if object_name_matches(child, aliases) && limit_remaining_percent(child).is_some() {
+                    return Some(child);
+                }
+                if let Some(found) = find_named_limit(child, aliases) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        Value::Array(items) => items
+            .iter()
+            .find_map(|item| find_named_limit(item, aliases)),
+        _ => None,
+    }
+}
+
+fn object_name_matches(value: &Value, aliases: &[&str]) -> bool {
+    [
+        "name",
+        "model",
+        "model_name",
+        "modelName",
+        "display_name",
+        "displayName",
+        "label",
+        "id",
+    ]
+    .iter()
+    .filter_map(|key| value.get(*key).and_then(Value::as_str))
+    .any(|name| {
+        let lower = name.to_ascii_lowercase();
+        aliases.iter().any(|alias| lower.contains(alias))
+    })
+}
+
+fn value_contains_alias(value: &Value, aliases: &[&str]) -> bool {
+    object_name_matches(value, aliases)
+        || match value {
+            Value::Object(object) => object
+                .values()
+                .any(|child| value_contains_alias(child, aliases)),
+            Value::Array(items) => items
+                .iter()
+                .any(|child| value_contains_alias(child, aliases)),
+            Value::String(text) => {
+                let lower = text.to_ascii_lowercase();
+                aliases.iter().any(|alias| lower.contains(alias))
+            }
+            _ => false,
+        }
+}
+
+fn limit_remaining_percent(value: &Value) -> Option<f64> {
+    nested_f64(value, &["remaining_percent"])
+        .or_else(|| nested_f64(value, &["remainingPercent"]))
+        .or_else(|| nested_f64(value, &["remaining"]))
+        .map(normalize_remaining_percent)
+        .or_else(|| {
+            nested_f64(value, &["utilization"])
+                .or_else(|| nested_f64(value, &["used_percent"]))
+                .or_else(|| nested_f64(value, &["usedPercent"]))
+                .or_else(|| nested_f64(value, &["percent"]))
+                .map(remaining_percent)
+        })
+}
+
+fn normalize_remaining_percent(value: f64) -> f64 {
+    if value <= 1.0 {
+        (value * 100.0).clamp(0.0, 100.0)
+    } else {
+        value.clamp(0.0, 100.0)
+    }
+}
+
+fn limit_reset_at(value: &Value) -> Option<String> {
+    nested_string(value, &["resets_at"])
+        .or_else(|| nested_string(value, &["reset_at"]))
+        .or_else(|| nested_string(value, &["resetAt"]))
+}
+
 fn json_f64(value: &Value) -> Option<f64> {
     value
         .as_f64()
@@ -515,6 +556,12 @@ mod tests {
             "seven_day": {
                 "utilization": "40",
                 "resets_at": "2099-01-07T00:00:00.000Z"
+            },
+            "model_limits": {
+                "claude_fable_5": {
+                    "utilization": 20,
+                    "resets_at": "2099-01-02T00:00:00.000Z"
+                }
             }
         });
 
@@ -526,7 +573,79 @@ mod tests {
                 session_reset_at: Some("2099-01-01T00:00:00.000Z".to_string()),
                 weekly_remaining_percent: Some(60.0),
                 weekly_reset_at: Some("2099-01-07T00:00:00.000Z".to_string()),
+                fable_remaining_percent: Some(80.0),
+                fable_reset_at: Some("2099-01-02T00:00:00.000Z".to_string()),
             }
+        );
+    }
+
+    #[test]
+    fn finds_fable_limit_from_model_array() {
+        let oauth = ClaudeOauth {
+            access_token: "token".to_string(),
+            refresh_token: None,
+            expires_at: None,
+            subscription_type: None,
+            rate_limit_tier: None,
+            scopes: None,
+        };
+        let body = serde_json::json!({
+            "limits": [
+                { "model": "claude-sonnet", "remaining_percent": 90 },
+                { "modelName": "Claude Fable 5", "remaining": 0.42, "resetAt": "2099-01-03T00:00:00.000Z" }
+            ]
+        });
+
+        let summary = summarize_usage(&body, &oauth, None);
+
+        assert_eq!(summary.fable_remaining_percent, Some(42.0));
+        assert_eq!(
+            summary.fable_reset_at,
+            Some("2099-01-03T00:00:00.000Z".to_string())
+        );
+    }
+
+    #[test]
+    fn finds_fable_limit_from_scoped_weekly_limit() {
+        let oauth = ClaudeOauth {
+            access_token: "token".to_string(),
+            refresh_token: None,
+            expires_at: None,
+            subscription_type: None,
+            rate_limit_tier: None,
+            scopes: None,
+        };
+        let body = serde_json::json!({
+            "limits": [
+                {
+                    "kind": "weekly_all",
+                    "group": "weekly",
+                    "percent": 3,
+                    "resets_at": "2099-01-07T20:00:00.000Z",
+                    "scope": null
+                },
+                {
+                    "kind": "weekly_scoped",
+                    "group": "weekly",
+                    "percent": 2,
+                    "resets_at": "2099-01-07T20:00:00.000Z",
+                    "scope": {
+                        "model": {
+                            "id": null,
+                            "display_name": "Fable"
+                        },
+                        "surface": null
+                    }
+                }
+            ]
+        });
+
+        let summary = summarize_usage(&body, &oauth, None);
+
+        assert_eq!(summary.fable_remaining_percent, Some(98.0));
+        assert_eq!(
+            summary.fable_reset_at,
+            Some("2099-01-07T20:00:00.000Z".to_string())
         );
     }
 

@@ -257,12 +257,12 @@ input {
 
 .glance-metrics {
   min-width: 0;
-  display: grid;
-  grid-template-columns: auto auto auto;
+  display: flex;
   align-items: baseline;
-  gap: 2px;
+  gap: 1px;
   font-size: 10px;
   line-height: 1;
+  overflow: hidden;
   white-space: nowrap;
 }
 
@@ -276,11 +276,16 @@ input {
 }
 
 .glance-metrics span {
+  min-width: 0;
+  overflow: hidden;
   color: var(--muted);
   font-weight: 600;
+  text-overflow: ellipsis;
 }
 
 .glance-metrics span[aria-hidden="true"] {
+  flex: 0 0 auto;
+  overflow: visible;
   color: var(--faint);
   font-weight: 500;
 }

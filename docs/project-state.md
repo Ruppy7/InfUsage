@@ -7,8 +7,8 @@ Last checked: 2026-06-30
 - Product name: LimitLens.
 - GitHub repo: `https://github.com/Ruppy7/LimitLens`.
 - Main development branch: `main`.
-- Current merged commit: `00a990e` (`Merge pull request #3 from Ruppy7/codex/glance-window`).
-- Active feature branch: `feat/resizable-dashboard`.
+- Current merged commit: `2e26b11` (`Add resizable dashboard shell (#4)`).
+- Active feature branch: `feat/provider-expansion`.
 - Stack: Tauri v2, React, TypeScript, Vite, Rust.
 - Package manager: npm.
 - Distribution: unsigned Windows NSIS installer, portable zip, and SHA256 checksums through GitHub Releases.
@@ -27,12 +27,20 @@ Last checked: 2026-06-30
 
 ## Provider state
 
-- Codex: reads Windows-native Codex auth and shows quota/reset summary.
-- Claude: reads Windows-native Claude credentials and shows quota/reset summary.
+- Codex: reads Windows-native Codex auth and shows quota/reset summary plus rate-limit reset credits with expiry dates when the dedicated endpoint is available.
+- Claude: reads Windows-native Claude credentials and shows session, weekly, and Fable 5 quota/reset summary when exposed.
 - DeepSeek: optional API balance check via a saved key in Windows Credential Manager.
 - OpenCode Go: experimental cookie-backed quota flow against the authenticated workspace page.
 - OpenCode local SQLite spend: documented fallback idea only, not shipped app code.
-- Antigravity: pending.
+- Antigravity: running-app language-server path plus Windows Credential Manager / Cloud Code fallback implemented on `feat/provider-expansion`.
+
+## Provider expansion plan
+
+- `feat/provider-expansion` was created from clean `main` after PR #4 merged.
+- Local OpenUsage reference docs were reviewed for Antigravity, Cursor, Devin, GitHub Copilot, Grok, OpenRouter, and Z.ai.
+- Implementation order: Antigravity first, then Cursor, then the rest of the providers.
+- Cursor's first slice should focus on live quota/credits; stale spend export and local/estimated token-cost analytics remain deferred until source-quality labels are in place.
+- OpenRouter and Z.ai are deferred until DeepSeek's provider-page key flow is generalized into reusable API-key provider management.
 
 ## Recent cleanup
 

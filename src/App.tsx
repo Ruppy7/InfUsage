@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import "./App.css";
 import limitLensLogo from "../src-tauri/icons/limitlens-logo.svg";
+import antigravityIcon from "./assets/providers/antigravity.svg";
 import anthropicIcon from "./assets/providers/anthropic.svg";
 import deepseekIcon from "./assets/providers/deepseek.svg";
 import openaiIcon from "./assets/providers/openai.svg";
@@ -48,7 +49,7 @@ type DeepSeekKeySlot = {
 
 type DisplayMode = "minimal" | "all";
 type ThemeMode = "system" | "light" | "dark" | "tokyo-night";
-type ProviderKey = "codex" | "claude" | "deepseek" | "opencode";
+type ProviderKey = "antigravity" | "codex" | "claude" | "deepseek" | "opencode";
 type DashboardView = "all" | ProviderKey;
 type LifecycleState = "refreshing" | "fresh" | "stale" | "error" | "empty";
 type DisconnectedProviders = Partial<Record<ProviderKey, boolean>>;
@@ -83,6 +84,7 @@ type ProviderMeta = {
 };
 
 const PROVIDERS: ProviderMeta[] = [
+  { id: "antigravity", title: "Antigravity", icon: antigravityIcon, note: "Reads quota pools from a running Antigravity/agy language server, then falls back to saved local agy credentials.", emptyLabel: "Sign-in needed" },
   { id: "codex", title: "Codex", icon: openaiIcon, note: "Authorizes via your local Codex login (~/.codex/auth.json). No key to manage.", emptyLabel: "Local login needed" },
   { id: "claude", title: "Claude", icon: anthropicIcon, note: "Authorizes via your local Claude Code login (~/.claude/.credentials.json). Limits apply across Claude products.", emptyLabel: "Local login needed" },
   { id: "deepseek", title: "DeepSeek", icon: deepseekIcon, note: "Add an API key to read your balance from the official /user/balance endpoint.", emptyLabel: "No API key" },
@@ -232,24 +234,28 @@ function App() {
   }
 
   const [snapshots, setSnapshots] = useState<Record<ProviderKey, ProviderSnapshot | null>>({
+    antigravity: null,
     codex: null,
     claude: null,
     deepseek: null,
     opencode: null,
   });
   const [refreshing, setRefreshing] = useState<Record<ProviderKey, boolean>>({
+    antigravity: false,
     codex: false,
     claude: false,
     deepseek: false,
     opencode: false,
   });
   const [errors, setErrors] = useState<Record<ProviderKey, string | null>>({
+    antigravity: null,
     codex: null,
     claude: null,
     deepseek: null,
     opencode: null,
   });
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Record<ProviderKey, number>>({
+    antigravity: 0,
     codex: 0,
     claude: 0,
     deepseek: 0,
@@ -294,8 +300,8 @@ function App() {
 
     invoke<SavedSnapshot[]>("list_saved_snapshots")
       .then((savedSnapshots) => {
-        const next: Record<ProviderKey, ProviderSnapshot | null> = { codex: null, claude: null, deepseek: null, opencode: null };
-        const nextUpdated: Record<ProviderKey, number> = { codex: 0, claude: 0, deepseek: 0, opencode: 0 };
+        const next: Record<ProviderKey, ProviderSnapshot | null> = { antigravity: null, codex: null, claude: null, deepseek: null, opencode: null };
+        const nextUpdated: Record<ProviderKey, number> = { antigravity: 0, codex: 0, claude: 0, deepseek: 0, opencode: 0 };
 
         for (const saved of savedSnapshots) {
           const providerId = saved.provider_id as ProviderKey;
@@ -421,6 +427,9 @@ function App() {
   async function refreshCodex() {
     await runRefresh("codex", () => invoke<ProviderSnapshot>("refresh_codex"));
   }
+  async function refreshAntigravity() {
+    await runRefresh("antigravity", () => invoke<ProviderSnapshot>("refresh_antigravity"));
+  }
   async function refreshClaude() {
     await runRefresh("claude", () => invoke<ProviderSnapshot>("refresh_claude"));
   }
@@ -434,6 +443,7 @@ function App() {
   async function refreshAllConnected() {
     if (Object.values(refreshing).some(Boolean)) return;
     const tasks: Promise<void>[] = [];
+    if (!disconnectedProviders.antigravity) tasks.push(refreshAntigravity());
     if (!disconnectedProviders.codex) tasks.push(refreshCodex());
     if (!disconnectedProviders.claude) tasks.push(refreshClaude());
     if (!disconnectedProviders.deepseek && hasKey) tasks.push(refreshDeepSeek());
@@ -583,6 +593,7 @@ function App() {
     setDisconnectedProviders((current) => ({ ...current, [key]: false }));
     setDashboardView(key);
     setAddProviderOpen(false);
+    if (key === "antigravity") await refreshAntigravity();
     if (key === "codex") await refreshCodex();
     if (key === "claude") await refreshClaude();
     if (key === "deepseek" && hasKey) await refreshDeepSeek();
@@ -595,16 +606,26 @@ function App() {
     const providerUnavailable = disconnectedProviders[key] || (key === "opencode" && !opencodeQuotaConnected);
     const rawMetrics =
       providerUnavailable ? [] : key === "opencode" ? snapshotLines.filter((line) => !archivedOpenCodeSpendLabels.has(line.label)) : snapshotLines;
-    const planLabel = key === "codex" || key === "claude" ? rawMetrics.find((line) => line.label === "Plan")?.value : undefined;
+    const planLabel =
+      key === "antigravity" || key === "codex" || key === "claude" ? rawMetrics.find((line) => line.label === "Plan")?.value : undefined;
     const metrics = planLabel ? rawMetrics.filter((line) => line.label !== "Plan") : rawMetrics;
     const state = deriveState(key);
     const errorMessage = errors[key];
     const retry =
-      key === "codex" ? refreshCodex : key === "claude" ? refreshClaude : key === "deepseek" ? refreshDeepSeek : refreshOpenCode;
+      key === "antigravity"
+        ? refreshAntigravity
+        : key === "codex"
+          ? refreshCodex
+          : key === "claude"
+            ? refreshClaude
+            : key === "deepseek"
+              ? refreshDeepSeek
+              : refreshOpenCode;
 
     let hint: string | null = null;
     if (state === "empty") {
       if (disconnectedProviders[key]) hint = "Reconnect from this provider page";
+      else if (key === "antigravity") hint = "Start Antigravity, run agy, or refresh local sign-in";
       else if (key === "deepseek" && !hasKey) hint = "Add an API key from the DeepSeek page";
       else if (key === "opencode" && !opencodeQuotaConnected) hint = "Link Go limits from the OpenCode page";
     }
@@ -961,7 +982,7 @@ function ProviderDashboardView({
             <Star aria-hidden="true" size={13} />
             {isStarred ? "Starred" : "Star"}
           </button>
-          {(providerKey === "codex" || providerKey === "claude") && (
+          {(providerKey === "antigravity" || providerKey === "codex" || providerKey === "claude") && (
             <button
               className="btn ghost"
               onClick={() => (disconnected ? void onReconnectProvider(providerKey) : onDisconnectProvider(providerKey))}
@@ -1047,6 +1068,10 @@ function ProviderSetupPanel({
         <h3>Provider setup</h3>
         <p>Connection and provider-specific options.</p>
       </div>
+
+      {providerKey === "antigravity" && (
+        <p className="section-note">Uses a running Antigravity/agy server first, then saved local agy credentials when available. Disconnect hides this provider until you reconnect it.</p>
+      )}
 
       {(providerKey === "codex" || providerKey === "claude") && (
         <p className="section-note">Uses your local CLI login. Disconnect hides this provider until you reconnect it.</p>
@@ -1239,9 +1264,10 @@ function GlanceApp() {
     .slice(0, 4)
     .map((key) => {
       const meta = PROVIDERS.find((provider) => provider.id === key)!;
-      return key === "deepseek"
-        ? glanceBalanceItem(key, meta.icon, snapshots[key])
-        : glanceItem(key, meta.icon, snapshots[key], key === "opencode" ? "Rolling" : "Session", "Weekly");
+      if (key === "deepseek") return glanceBalanceItem(key, meta.icon, snapshots[key]);
+      if (key === "antigravity") return glanceAntigravityItem(key, meta.icon, snapshots[key]);
+      if (key === "claude") return glanceItem(key, meta.icon, snapshots[key], "Session", "Weekly", "Fable 5");
+      return glanceItem(key, meta.icon, snapshots[key], key === "opencode" ? "Rolling" : "Session", "Weekly");
     });
 
   return (
@@ -1268,6 +1294,12 @@ function GlanceApp() {
                 <span>{item.weekly ?? "--"}</span>
               </>
             )}
+            {item.extra !== null && (
+              <>
+                <span aria-hidden="true">|</span>
+                <span>{item.extra ?? "--"}</span>
+              </>
+            )}
           </span>
         </span>
       ))}
@@ -1282,7 +1314,22 @@ function glanceBalanceItem(id: ProviderKey, icon: string, snapshot: ProviderSnap
     icon,
     current: usd ? dollarLabel(usd.value) : null,
     weekly: null,
+    extra: null,
     empty: !usd,
+  };
+}
+
+function glanceAntigravityItem(id: ProviderKey, icon: string, snapshot: ProviderSnapshot | null | undefined) {
+  const geminiPro = snapshot?.lines.find((line) => line.label === "Gemini Pro");
+  const geminiFlash = snapshot?.lines.find((line) => line.label === "Gemini Flash");
+  const claude = snapshot?.lines.find((line) => line.label === "Claude");
+  return {
+    id,
+    icon,
+    current: geminiPro ? percentLabelFromValue(geminiPro.value) : null,
+    weekly: geminiFlash ? percentLabelFromValue(geminiFlash.value) : null,
+    extra: claude ? percentLabelFromValue(claude.value) : null,
+    empty: !geminiPro && !geminiFlash && !claude,
   };
 }
 
@@ -1292,15 +1339,18 @@ function glanceItem(
   snapshot: ProviderSnapshot | null | undefined,
   currentLabel: string,
   weeklyLabel: string,
+  extraLabel?: string,
 ) {
   const current = snapshot?.lines.find((line) => line.label === currentLabel);
   const weekly = snapshot?.lines.find((line) => line.label === weeklyLabel);
+  const extra = extraLabel ? snapshot?.lines.find((line) => line.label === extraLabel) : null;
   return {
     id,
     icon,
     current: current ? percentLabelFromValue(current.value) : null,
     weekly: weekly ? percentLabelFromValue(weekly.value) : null,
-    empty: !current && !weekly,
+    extra: extra ? percentLabelFromValue(extra.value) : null,
+    empty: !current && !weekly && !extra,
   };
 }
 

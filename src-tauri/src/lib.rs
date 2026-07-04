@@ -19,6 +19,7 @@ pub fn run() {
             commands::request_tray_close,
             commands::set_glance_visible,
             commands::set_glance_position,
+            commands::refresh_antigravity,
             commands::refresh_claude,
             commands::refresh_codex,
             commands::save_deepseek_api_key,

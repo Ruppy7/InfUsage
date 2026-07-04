@@ -27,8 +27,8 @@
       {
         "label": "glance",
         "title": "LimitLens Glance",
-        "width": 188,
-        "height": 48,
+        "width": 220,
+        "height": 54,
         "resizable": false,
         "maximizable": false,
         "decorations": false,

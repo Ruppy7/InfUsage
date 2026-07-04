@@ -2,14 +2,15 @@ use reqwest::{blocking::Client, header::HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
-    env, fs, io,
-    path::{Path, PathBuf},
+    fs, io,
+    path::PathBuf,
     time::{Duration, SystemTime},
 };
-#[cfg(windows)]
-use std::{ffi::OsStr, os::windows::ffi::OsStrExt};
+
+use super::util::{file_modified_at, non_empty_env_path, write_json_atomic};
 
 const USAGE_URL: &str = "https://chatgpt.com/backend-api/wham/usage";
+const RESET_CREDITS_URL: &str = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
 const REFRESH_URL: &str = "https://auth.openai.com/oauth/token";
 const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -36,6 +37,8 @@ pub struct UsageSummary {
     pub session_reset_at: Option<i64>,
     pub weekly_remaining_percent: Option<f64>,
     pub weekly_reset_at: Option<i64>,
+    pub reset_credit_available_count: Option<i64>,
+    pub reset_credit_expires_at: Vec<String>,
     pub credits_balance: Option<f64>,
 }
 
@@ -132,8 +135,38 @@ fn fetch_usage_summary(client: &Client, tokens: &CodexTokens) -> Result<FetchRes
 
     let headers = response.headers().clone();
     let body = response.error_for_status()?.json::<Value>()?;
+    let reset_credits = fetch_reset_credits(client, tokens).ok().flatten();
 
-    Ok(FetchResult::Ok(summarize_usage(&body, &headers)))
+    Ok(FetchResult::Ok(summarize_usage(
+        &body,
+        &headers,
+        reset_credits.as_ref(),
+    )))
+}
+
+fn fetch_reset_credits(client: &Client, tokens: &CodexTokens) -> Result<Option<Value>, CodexError> {
+    let mut request = client
+        .get(RESET_CREDITS_URL)
+        .bearer_auth(&tokens.access_token)
+        .header("Accept", "application/json")
+        .header("OpenAI-Beta", "codex-1")
+        .header("originator", "Codex Desktop");
+
+    if let Some(account_id) = &tokens.account_id {
+        request = request.header("ChatGPT-Account-Id", account_id);
+    }
+
+    let response = request.send()?;
+    if !response.status().is_success() {
+        return Ok(None);
+    }
+
+    let body = response.json::<Value>()?;
+    if body.get("available_count").and_then(json_i64).is_some() {
+        return Ok(Some(body));
+    }
+
+    Ok(None)
 }
 
 fn refresh_auth(client: &Client, auth: &mut CodexAuth) -> Result<(), CodexError> {
@@ -219,56 +252,6 @@ fn auth_file_changed(auth: &CodexAuth) -> Result<bool, CodexError> {
     Ok(file_modified_at(&auth.path) != auth.modified_at)
 }
 
-fn file_modified_at(path: &Path) -> Option<SystemTime> {
-    fs::metadata(path)
-        .and_then(|metadata| metadata.modified())
-        .ok()
-}
-
-fn write_json_atomic(path: &Path, bytes: &[u8]) -> Result<(), CodexError> {
-    let tmp_path = path.with_extension("tmp");
-    fs::write(&tmp_path, bytes)?;
-    replace_file(&tmp_path, path)?;
-    Ok(())
-}
-
-#[cfg(windows)]
-fn replace_file(from: &Path, to: &Path) -> Result<(), CodexError> {
-    const MOVEFILE_REPLACE_EXISTING: u32 = 0x1;
-    const MOVEFILE_WRITE_THROUGH: u32 = 0x8;
-
-    extern "system" {
-        fn MoveFileExW(existing: *const u16, new: *const u16, flags: u32) -> i32;
-    }
-
-    fn wide(path: &Path) -> Vec<u16> {
-        OsStr::new(path)
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect()
-    }
-
-    let from = wide(from);
-    let to = wide(to);
-    let moved = unsafe {
-        MoveFileExW(
-            from.as_ptr(),
-            to.as_ptr(),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-        )
-    };
-    if moved == 0 {
-        return Err(CodexError::Io(io::Error::last_os_error()));
-    }
-    Ok(())
-}
-
-#[cfg(not(windows))]
-fn replace_file(from: &Path, to: &Path) -> Result<(), CodexError> {
-    fs::rename(from, to)?;
-    Ok(())
-}
-
 fn auth_paths() -> Vec<PathBuf> {
     if let Some(codex_home) = non_empty_env_path("CODEX_HOME") {
         return vec![codex_home.join("auth.json")];
@@ -283,17 +266,6 @@ fn auth_paths() -> Vec<PathBuf> {
 
     paths
 }
-
-fn non_empty_env_path(key: &str) -> Option<PathBuf> {
-    env::var_os(key).and_then(|value| {
-        if value.is_empty() {
-            None
-        } else {
-            Some(Path::new(&value).to_path_buf())
-        }
-    })
-}
-
 fn tokens_from_json(json: &Value) -> Result<CodexTokens, CodexError> {
     serde_json::from_value(
         json.get("tokens")
@@ -303,11 +275,16 @@ fn tokens_from_json(json: &Value) -> Result<CodexTokens, CodexError> {
     .map_err(|_| CodexError::MissingTokens)
 }
 
-fn summarize_usage(body: &Value, headers: &HeaderMap) -> UsageSummary {
+fn summarize_usage(
+    body: &Value,
+    headers: &HeaderMap,
+    reset_credits: Option<&Value>,
+) -> UsageSummary {
     let session_used_percent = header_f64(headers, "x-codex-primary-used-percent")
         .or_else(|| nested_f64(body, &["rate_limit", "primary_window", "used_percent"]));
     let weekly_used_percent = header_f64(headers, "x-codex-secondary-used-percent")
         .or_else(|| nested_f64(body, &["rate_limit", "secondary_window", "used_percent"]));
+    let reset_credit_source = reset_credits.or_else(|| body.get("rate_limit_reset_credits"));
 
     UsageSummary {
         plan_type: body
@@ -318,6 +295,13 @@ fn summarize_usage(body: &Value, headers: &HeaderMap) -> UsageSummary {
         session_reset_at: nested_i64(body, &["rate_limit", "primary_window", "reset_at"]),
         weekly_remaining_percent: weekly_used_percent.map(remaining_percent),
         weekly_reset_at: nested_i64(body, &["rate_limit", "secondary_window", "reset_at"]),
+        reset_credit_available_count: reset_credit_source
+            .and_then(|value| value.get("available_count"))
+            .and_then(json_i64),
+        reset_credit_expires_at: reset_credit_source
+            .and_then(|value| value.get("credits"))
+            .map(available_reset_credit_expiries)
+            .unwrap_or_default(),
         credits_balance: credits_balance(body, headers),
     }
 }
@@ -338,6 +322,33 @@ fn credits_balance(body: &Value, headers: &HeaderMap) -> Option<f64> {
 
     header_f64(headers, "x-codex-credits-balance")
         .or_else(|| nested_f64(body, &["credits", "balance"]))
+}
+
+fn available_reset_credit_expiries(value: &Value) -> Vec<String> {
+    let mut dates = value
+        .as_array()
+        .map(|credits| {
+            credits
+                .iter()
+                .filter(|credit| {
+                    credit
+                        .get("status")
+                        .and_then(Value::as_str)
+                        .is_none_or(|status| status == "available")
+                })
+                .filter_map(|credit| credit.get("expires_at").and_then(date_string))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    dates.sort();
+    dates
+}
+
+fn date_string(value: &Value) -> Option<String> {
+    value
+        .as_str()
+        .map(str::to_string)
+        .or_else(|| json_i64(value).map(|seconds| seconds.to_string()))
 }
 
 fn nested_f64(value: &Value, path: &[&str]) -> Option<f64> {
@@ -384,6 +395,7 @@ mod tests {
                 "primary_window": { "used_percent": 12.5, "reset_at": 1782229464 },
                 "secondary_window": { "used_percent": "33.5", "reset_at": "1782557292" }
             },
+            "rate_limit_reset_credits": { "available_count": 1 },
             "credits": { "balance": 10 }
         });
         let mut headers = HeaderMap::new();
@@ -393,13 +405,15 @@ mod tests {
         );
 
         assert_eq!(
-            summarize_usage(&body, &headers),
+            summarize_usage(&body, &headers, None),
             UsageSummary {
                 plan_type: Some("pro".to_string()),
                 session_remaining_percent: Some(86.5),
                 session_reset_at: Some(1782229464),
                 weekly_remaining_percent: Some(66.5),
                 weekly_reset_at: Some(1782557292),
+                reset_credit_available_count: Some(1),
+                reset_credit_expires_at: Vec::new(),
                 credits_balance: Some(10.0),
             }
         );
@@ -409,7 +423,7 @@ mod tests {
     fn parses_summary_json() {
         assert_eq!(
             parse_usage_summary(
-                r#"{"plan_type":"pro","session_remaining_percent":1,"session_reset_at":1782229464,"weekly_remaining_percent":2,"weekly_reset_at":1782557292,"credits_balance":3}"#
+                r#"{"plan_type":"pro","session_remaining_percent":1,"session_reset_at":1782229464,"weekly_remaining_percent":2,"weekly_reset_at":1782557292,"reset_credit_available_count":3,"reset_credit_expires_at":["2099-01-01T00:00:00Z"],"credits_balance":3}"#
             )
             .expect("summary should parse"),
             UsageSummary {
@@ -418,6 +432,8 @@ mod tests {
                 session_reset_at: Some(1782229464),
                 weekly_remaining_percent: Some(2.0),
                 weekly_reset_at: Some(1782557292),
+                reset_credit_available_count: Some(3),
+                reset_credit_expires_at: vec!["2099-01-01T00:00:00Z".to_string()],
                 credits_balance: Some(3.0),
             }
         );
@@ -430,8 +446,34 @@ mod tests {
         });
 
         assert_eq!(
-            summarize_usage(&body, &HeaderMap::new()).credits_balance,
+            summarize_usage(&body, &HeaderMap::new(), None).credits_balance,
             None
+        );
+    }
+
+    #[test]
+    fn dedicated_reset_credits_override_usage_body_and_sort_expiries() {
+        let body = serde_json::json!({
+            "rate_limit_reset_credits": { "available_count": 1 }
+        });
+        let reset_credits = serde_json::json!({
+            "available_count": 2,
+            "credits": [
+                { "status": "available", "expires_at": "2099-01-03T00:00:00Z" },
+                { "expires_at": "2099-01-01T00:00:00Z" },
+                { "status": "consumed", "expires_at": "2099-01-02T00:00:00Z" }
+            ]
+        });
+
+        let summary = summarize_usage(&body, &HeaderMap::new(), Some(&reset_credits));
+
+        assert_eq!(summary.reset_credit_available_count, Some(2));
+        assert_eq!(
+            summary.reset_credit_expires_at,
+            vec![
+                "2099-01-01T00:00:00Z".to_string(),
+                "2099-01-03T00:00:00Z".to_string(),
+            ]
         );
     }
 }

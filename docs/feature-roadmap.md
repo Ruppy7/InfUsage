@@ -193,32 +193,74 @@ Rule: do not aggregate estimated and exact usage without preserving the distinct
 
 ## Provider Roadmap
 
+### F6 - Provider Expansion Branch
+
+**Status:** In Progress
+
+Branch: `feat/provider-expansion`
+
+Goal: add more providers without jumping straight into the full token/cost dashboard. Each provider should first deliver the most reliable quota/balance snapshot it can expose, then token/cost analytics can layer on top once the structured metric model is ready.
+
+Research pass completed from local `robinebers/openusage` reference clone:
+
+- OpenUsage provider docs reviewed: Antigravity, Cursor, Devin, Grok, Copilot, OpenRouter, and Z.ai.
+- OpenUsage provider shape confirmed: auth store -> usage client -> mapper -> normalized provider snapshot.
+- For LimitLens, keep the existing host/plugin boundary: Rust owns credential/API access, JS plugin normalizes sanitized host data into display lines.
+- Add provider docs beside each implementation as providers land.
+
+Recommended implementation order:
+
+1. **Antigravity** - first because it is already in core scope and quota-only. Use the running-app language-server path first, then local Credential Manager token plus Cloud Code fallback.
+2. **Cursor** - high user value and the next target after Antigravity. Start with live quota/credits; keep stale spend exports out of the first slice.
+3. **Devin** - local CLI/app credential provider with daily/weekly quota and extra balance. Similar shape to the quota providers we already support.
+4. **GitHub Copilot** - local editor/GitHub CLI token provider with premium/chat/completion quota. Useful, but only if Windows token paths are straightforward.
+5. **Grok / xAI** - monthly credits plus optional local log token/cost spend. Defer until source-quality labels are in place for local/estimated spend.
+6. **OpenRouter / Z.ai** - API-key providers. Implement after we generalize the current DeepSeek-specific key UI into reusable provider-page key management.
+7. **Ollama** - defer until we decide what "usage" means for local models without subscription limits.
+
+Provider integration categories:
+
+| Category | Providers | First LimitLens behavior |
+|---|---|---|
+| Local app/language-server quota | Antigravity | Discover local app/server, call quota endpoint, cache last snapshot when unavailable |
+| Local CLI/app credential quota | Devin, Copilot, Cursor, Grok | Read existing Windows credentials or local app state; refresh tokens only when safe and understood |
+| User-supplied API key | DeepSeek, OpenRouter, Z.ai | Store keys in Windows Credential Manager and manage from provider pages |
+| Local logs / estimated spend | Claude/Codex follow-ups, Grok, Cursor if restored | Label as local-only or estimated; do not aggregate as exact spend |
+| Local runtime without subscription quota | Ollama | Research-only until token counting or request wrapping has a clear product meaning |
+
+Next implementation slice:
+
+- Antigravity now uses Windows running-app discovery first, with Credential Manager / Cloud Code fallback.
+- Older SQLite-token fallback remains research-only unless current Windows installs require it.
+- Antigravity parser/plugin tests cover sanitized response mapping before UI refresh.
+
 ### Current Providers
 
 | Provider | Current Status | Near-Term Work |
 |---|---|---|
 | Codex | Implemented for session/weekly summary | Research reset banks, extra usage, local token spend, structured metrics |
-| Claude / Claude Code | Implemented for quota summary | Research local token/cost spend via logs or ccusage-style tooling |
+| Claude / Claude Code | Implemented for quota summary, including Fable 5 when exposed | Research local token/cost spend via logs or ccusage-style tooling |
 | DeepSeek | Implemented for API balance | Keep as balance provider; token usage only if a documented usage API exists |
 | OpenCode Go | Implemented via experimental console cookie | Replace pasted cookie with app-owned session or upstream read-only API if possible |
-| Antigravity | Pending | Complete local language-server discovery and quota call |
+| Antigravity | Implemented with fallback | Validate language-server and Credential Manager behavior against more Windows installs |
 
 ### Candidate Providers
 
 | Provider | Status | Likely Data Source | Research Needed |
 |---|---|---|---|
-| Cursor | Research | Cursor app local state, dashboard endpoints, usage APIs | Credential source on Windows, token refresh, live usage fields, stale spend export behavior |
-| Devin | Research | CLI credentials or app local state; `GetUserStatus` style quota endpoint | Windows credential/config paths and API server behavior |
-| xAI / Grok | Research | Grok CLI auth and billing endpoints; local logs for token spend | Windows CLI paths, token refresh, log format stability |
+| Antigravity | Implemented with fallback | Local language-server first; Credential Manager / Cloud Code fallback | More Windows process/port/CSRF validation and response captures |
+| Cursor | Next | Cursor app local state, dashboard endpoints, usage APIs | Credential source on Windows, token refresh, live usage fields, stale spend export behavior |
+| Devin | Planned after Cursor | CLI credentials or app local state; `GetUserStatus` style quota endpoint | Windows credential/config paths and API server behavior |
+| GitHub Copilot | Planned after Cursor | Local Copilot auth/session and quota APIs | Windows token paths and whether user plan exposes meaningful limits |
+| xAI / Grok | Planned later | Grok CLI auth and billing endpoints; local logs for token spend | Windows CLI paths, token refresh, log format stability |
+| OpenRouter | Planned after reusable key management | User-supplied API key and documented credit/spend endpoints | Adapt DeepSeek key flow into reusable provider-page key management |
+| Z.ai | Planned after reusable key management | User-supplied API key and coding plan quotas | Validate API shape and relevance to LimitLens users |
 | Ollama | Idea | Local runtime/API logs, model metadata | Define what "usage" means without subscription quota; token counts may require wrapping/proxying calls |
-| GitHub Copilot | Research | Local Copilot auth/session and quota APIs | Verify current provider contract and whether meaningful limits are exposed |
-| OpenRouter | Research | User-supplied API key and documented credit/spend endpoints | Decide whether API-key balance providers belong beside subscription providers |
-| Z.ai | Research | User-supplied API key and coding plan quotas | Validate API shape and relevance to LimitLens users |
 | Xiaomi MiMo | Deferred | Dashboard/private endpoints or token-plan API | Verify stable read path before any implementation |
 
 ## Unified Token and Cost Accounting
 
-### F6 - Token Usage Dashboard
+### F7 - Token Usage Dashboard
 
 **Status:** Research
 
@@ -241,7 +283,7 @@ Key constraint:
 
 Accurate token aggregation is only possible when the provider or local tool exposes trustworthy token counts. When the app estimates from logs or pricing manifests, the dashboard must label that clearly.
 
-### F7 - Cost and Subscription Usage
+### F8 - Cost and Subscription Usage
 
 **Status:** Research
 
@@ -255,17 +297,17 @@ Rules:
 
 ## Codex Follow-Ups
 
-### F8 - Codex Reset Banks
+### F9 - Codex Reset Banks
 
-**Status:** Research
+**Status:** Implemented
 
 Goal: show available reset banks and expiry dates.
 
 Expected display:
 
 ```text
-Rate Limit Resets: 2 available
-Expires: 2026-07-12, 2026-07-19
+Resets available: 2
+Expiring: 12-Jul-26, 19-Jul-26
 ```
 
 Implementation notes:
@@ -273,14 +315,12 @@ Implementation notes:
 - Treat reset banks as their own structured metric, not as a normal session/weekly usage row.
 - Dashboard can show expiry dates.
 - Glance window can show a compact `B2` later if useful.
+- Implemented for Codex as `Rate Limit Resets`, shown below the Weekly row.
+- Count comes from `rate_limit_reset_credits.available_count` in the usage body, or from the dedicated reset-credit endpoint when available.
+- Expiry dates come from `GET https://chatgpt.com/backend-api/wham/rate-limit-reset-credits` with the Codex desktop headers.
+- If the dedicated endpoint fails, LimitLens falls back to the count only.
 
-Research needed:
-
-- Verify the current Codex response shape for reset-bank count.
-- Verify whether a separate endpoint exposes expiry dates.
-- Confirm behavior for zero banks and expiring banks.
-
-### F9 - Codex Local Token Spend
+### F10 - Codex Local Token Spend
 
 **Status:** Research
 
@@ -304,7 +344,7 @@ Upstream project: [robinebers/openusage](https://github.com/robinebers/openusage
 
 Useful takeaways:
 
-- OpenUsage currently supports Antigravity, Claude, Codex, Cursor, Devin, Grok, OpenRouter, and Z.ai.
+- OpenUsage currently supports Antigravity, Claude, Codex, Cursor, Devin, GitHub Copilot, Grok, OpenRouter, and Z.ai.
 - Its current implementation is native macOS Swift/SwiftUI, not a drop-in Tauri/Rust implementation.
 - The provider architecture is still worth copying conceptually: auth store, usage client, mapper, normalized provider snapshot.
 - Its metric model is ahead of ours: progress meters, raw numeric values, badges, charts, reset expiry metadata, and source-aware display choices.
@@ -315,8 +355,10 @@ Provider references:
 - [OpenUsage README - Supported Providers](https://github.com/robinebers/openusage#supported-providers)
 - [Adding a Provider](https://github.com/robinebers/openusage/blob/main/docs/adding-a-provider.md)
 - [Codex provider docs](https://github.com/robinebers/openusage/blob/main/docs/providers/codex.md)
+- [Antigravity provider docs](https://github.com/robinebers/openusage/blob/main/docs/providers/antigravity.md)
 - [Cursor provider docs](https://github.com/robinebers/openusage/blob/main/docs/providers/cursor.md)
 - [Devin provider docs](https://github.com/robinebers/openusage/blob/main/docs/providers/devin.md)
+- [GitHub Copilot provider docs](https://github.com/robinebers/openusage/blob/main/docs/providers/copilot.md)
 - [Grok provider docs](https://github.com/robinebers/openusage/blob/main/docs/providers/grok.md)
 
 LimitLens reuse strategy:
@@ -328,13 +370,13 @@ LimitLens reuse strategy:
 
 ## Suggested Build Order
 
-1. Implement F1 glance window for one provider.
-2. Validate the glance UX in real daily use.
-3. If useful, implement F2 dashboard-only main window and remove Focus mode.
-4. Add F3 glance provider priority.
+1. Validate Antigravity language-server and Credential Manager fallback against a real Windows install.
+2. Add Cursor after Antigravity, starting with live quota/credits and deferring stale spend exports.
+3. Add provider docs and tests beside each new provider implementation.
+4. Generalize provider-page API-key management before OpenRouter or Z.ai.
 5. Add F4 structured provider metrics before deeper token/cost aggregation.
-6. Research and implement Antigravity, then Cursor or Codex reset banks.
-7. Add unified token/cost dashboard features only after source-quality labels exist.
+6. Add Grok only after source-quality labels can distinguish exact quota from local-only or estimated spend.
+7. Add unified token/cost dashboard features only after multiple providers expose structured source-quality metadata.
 
 ## Parking Lot
 

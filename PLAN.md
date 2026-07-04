@@ -49,6 +49,8 @@ Decision → Concept → Build → Checkpoint
 
 | D21 | Open-source workflow | Direct commits to main - long-running review branch - short feature branches with PRs | Decided: **feature branches + PR checkpoints** | Use `main` as the stable integration branch, build meaningful features on scoped branches with conventional prefixes such as `feat/`, `fix/`, `docs/`, `chore/`, or `refactor/`, and open PRs for review/checks before merging. Do not create new `codex/` branches. Versioned public builds come from tags (`v0.1.x`, `v0.2.0`) rather than feature branches. |
 
+| D22 | Provider expansion order | Core-scope first - highest-demand first - API-key providers first | Decided: **Antigravity, then Cursor** | Start `feat/provider-expansion` with Antigravity because it is already core scope and quota-only. Add Cursor next because it is high user value even though live quota, credits, and spend exports need separate treatment. Add the remaining providers after that, prioritizing local-credential quota sources before API-key-only providers. |
+
 ## Scaffold decision
 
 Use the official `create-tauri-app` React TypeScript template with npm.
@@ -62,7 +64,7 @@ Why npm: this environment has Node/npm installed; pnpm, yarn, Rust/Cargo are not
 | OpenAI Codex | 🟡 Fragile | Reuse Codex credentials from `~/.codex/auth.json`; poll the undocumented ChatGPT/Codex usage endpoint. Keep tokens inside the trusted host. |
 | Anthropic Claude / Claude Code | 🟡 Fragile-works | One shared integration because usage limits are shared. Reuse Claude Code credentials from `~/.claude/.credentials.json`, combine endpoint usage with local JSONL where useful. |
 | OpenCode Go | 🟡 Experimental quota path works | Active app path reads authenticated Go limits only. Verified quota contract (2026-06-24): GET `https://opencode.ai/workspace/{workspaceId}/go` returns quota under a session cookie; current path stores a pasted cookie in Credential Manager, fetches the document, and exposes sanitized quota only. Local `opencode.db` spend is safer because it avoids a web session cookie, but it is this-device-only and remains a documented alternative, not shipped app code. |
-| Antigravity (AGY) | 🟡 Fragile-feasible | Discover running AGY/Antigravity language-server local port and CSRF token; call loopback `GetUserStatus`; cache last successful quota snapshot and mark stale when closed. |
+| Antigravity (AGY) | 🟡 Fragile-feasible | Discover running AGY/Antigravity language-server local port and CSRF token; call loopback `GetUserStatus`; fall back to Windows Credential Manager token plus Cloud Code when available. |
 | Xiaomi MiMo Token Plan Lite | ⚪ Backlog optional | Public MiMo API access exists, but Token Plan quota tracking is not publicly documented. Dashboard inspection found `/tokenPlan/detail` and `/tokenPlan/usage`; response shape, reset semantics, and `tp-…` key read access remain unverified. |
 | DeepSeek API balance | 🟢 Solid optional | User-supplied key stored in Windows Credential Manager; poll documented `/user/balance`; show total/granted/topped-up balances and availability. Do not label balance deltas as exact spend. |
 
@@ -83,7 +85,7 @@ Why npm: this environment has Node/npm installed; pnpm, yarn, Rust/Cargo are not
 - See `docs/feature-roadmap.md` for the living feature tracker, provider expansion plan, and future implementation sequencing.
 - [ ] OpenCode Go read-only usage API: propose a small authenticated JSON endpoint around the existing subscription usage query.
 - [ ] OpenCode Go app-owned browser session: replace dev cookie paste if subscription-wide quota stays useful; store an isolated OpenCode console session in the Tauri app, then call authenticated console data paths.
-- [ ] Antigravity always-available mode: evaluate only if stale-cache behavior is not enough.
+- [x] Antigravity always-available mode: add Windows Credential Manager / Cloud Code fallback after the language-server path.
 - [ ] Xiaomi MiMo Token Plan Lite: revisit after core providers; capture sanitized `/tokenPlan/detail` and `/tokenPlan/usage` responses and test `tp-…` authorization.
 - [ ] DeepSeek detailed usage: revisit only if DeepSeek publishes a documented usage API.
 
@@ -159,7 +161,7 @@ Ponytail scope: prove the desktop shell first, then add tray behavior. No settin
 - [ ] Windows checkpoint: verify Claude refresh from the tray popup against the user's local Claude Code login.
 - [x] Keep the fixed tray panel usable as provider rows grow by making the provider list scroll within the popup.
 - [x] OpenCode Go checkpoint: validate subscription quota through the experimental Credential Manager cookie path; local `opencode.db` device spend remains a documented fallback idea.
-- [ ] Antigravity checkpoint: start Antigravity or `agy`, then discover the local language server and call `GetUserStatus`.
+- [x] Antigravity checkpoint: start Antigravity or `agy`, discover the local language server and call `GetUserStatus`, with Credential Manager / Cloud Code fallback when the app is closed.
 
 ## Phase 4 — Storage
 
