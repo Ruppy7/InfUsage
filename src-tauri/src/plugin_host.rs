@@ -22,6 +22,20 @@ function resetFromDate(value) {
   const date = typeof value === "number" ? new Date(value * 1000) : new Date(value);
   return resetDuration((date.getTime() - Date.now()) / 1000);
 }
+
+function shortDate(value) {
+  const date = typeof value === "number" ? new Date(value * 1000) : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  const day = String(date.getDate());
+  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][date.getMonth()];
+  const year = String(date.getFullYear()).slice(-2);
+  return `${day}-${month}-${year}`;
+}
+
+function expiryList(values) {
+  if (!Array.isArray(values) || values.length === 0) return "";
+  return ` Expiring (${values.map(shortDate).join(", ")})`;
+}
 "#;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -38,6 +52,9 @@ pub struct MetricLine {
 
 pub trait Host {
     fn app_name(&self) -> &'static str;
+    fn antigravity_usage_json(&self) -> String {
+        "{}".to_string()
+    }
     fn claude_usage_json(&self) -> String {
         "{}".to_string()
     }
@@ -54,6 +71,7 @@ pub trait Host {
 
 #[derive(Clone, Copy, Default)]
 struct HostCapabilities {
+    antigravity: bool,
     claude: bool,
     codex: bool,
     deepseek: bool,
@@ -79,6 +97,29 @@ function probe(ctx) {
 }
 "#;
 
+const ANTIGRAVITY_PROVIDER: &str = r#"
+function probe(ctx) {
+  const usage = JSON.parse(ctx.host.antigravityUsageJson());
+  const lines = [];
+
+  if (usage.plan_type) {
+    lines.push({ label: "Plan", value: String(usage.plan_type) });
+  }
+
+  for (const pool of usage.pools ?? []) {
+    if (pool.remaining_percent !== null && pool.remaining_percent !== undefined) {
+      const reset = pool.reset_at ? ` - Resets in ${resetFromDate(pool.reset_at)}` : "";
+      lines.push({ label: String(pool.label), value: `${pool.remaining_percent}%${reset}` });
+    }
+  }
+
+  return {
+    providerId: "antigravity",
+    lines
+  };
+}
+"#;
+
 const CODEX_PROVIDER: &str = r#"
 function probe(ctx) {
   const usage = JSON.parse(ctx.host.codexUsageJson());
@@ -96,6 +137,11 @@ function probe(ctx) {
   if (usage.weekly_remaining_percent !== null && usage.weekly_remaining_percent !== undefined) {
     const reset = usage.weekly_reset_at ? ` - Resets in ${resetFromDate(usage.weekly_reset_at)}` : "";
     lines.push({ label: "Weekly", value: `${usage.weekly_remaining_percent}%${reset}` });
+  }
+
+  if (usage.reset_credit_available_count !== null && usage.reset_credit_available_count !== undefined) {
+    const expires = expiryList(usage.reset_credit_expires_at);
+    lines.push({ label: "Resets available", value: `${usage.reset_credit_available_count}${expires}` });
   }
 
   if (usage.credits_balance !== null && usage.credits_balance !== undefined) {
@@ -126,6 +172,11 @@ function probe(ctx) {
   if (usage.weekly_remaining_percent !== null && usage.weekly_remaining_percent !== undefined) {
     const reset = usage.weekly_reset_at ? ` - Resets in ${resetFromDate(usage.weekly_reset_at)}` : "";
     lines.push({ label: "Weekly", value: `${usage.weekly_remaining_percent}%${reset}` });
+  }
+
+  if (usage.fable_remaining_percent !== null && usage.fable_remaining_percent !== undefined) {
+    const reset = usage.fable_reset_at ? ` - Resets in ${resetFromDate(usage.fable_reset_at)}` : "";
+    lines.push({ label: "Fable 5", value: `${usage.fable_remaining_percent}%${reset}` });
   }
 
   return {
@@ -208,6 +259,17 @@ pub fn run_deepseek_provider(host: &impl Host) -> Result<ProviderSnapshot, Plugi
     )
 }
 
+pub fn run_antigravity_provider(host: &impl Host) -> Result<ProviderSnapshot, PluginRunError> {
+    run_provider_with_capabilities(
+        ANTIGRAVITY_PROVIDER,
+        host,
+        HostCapabilities {
+            antigravity: true,
+            ..HostCapabilities::default()
+        },
+    )
+}
+
 pub fn run_codex_provider(host: &impl Host) -> Result<ProviderSnapshot, PluginRunError> {
     run_provider_with_capabilities(
         CODEX_PROVIDER,
@@ -251,6 +313,7 @@ pub fn run_provider(source: &str, host: &impl Host) -> Result<ProviderSnapshot, 
             codex: true,
             deepseek: true,
             opencode: true,
+            antigravity: true,
         },
     )
 }
@@ -271,6 +334,7 @@ fn run_provider_with_capabilities(
 
     let context = Context::full(&runtime)?;
     let app_name = host.app_name().to_string();
+    let antigravity_usage_json = host.antigravity_usage_json();
     let claude_usage_json = host.claude_usage_json();
     let codex_usage_json = host.codex_usage_json();
     let deepseek_balance_json = host.deepseek_balance_json();
@@ -279,6 +343,12 @@ fn run_provider_with_capabilities(
     context.with(|ctx| -> Result<ProviderSnapshot, PluginRunError> {
         let host = Object::new(ctx.clone())?;
         host.set("appName", Func::new(move || app_name.clone()))?;
+        if capabilities.antigravity {
+            host.set(
+                "antigravityUsageJson",
+                Func::new(move || antigravity_usage_json.clone()),
+            )?;
+        }
         if capabilities.claude {
             host.set(
                 "claudeUsageJson",
@@ -363,6 +433,7 @@ mod tests {
 
     #[derive(Default)]
     struct FakeHost {
+        antigravity_usage_json: String,
         claude_usage_json: String,
         codex_usage_json: String,
         deepseek_balance_json: String,
@@ -372,6 +443,10 @@ mod tests {
     impl Host for FakeHost {
         fn app_name(&self) -> &'static str {
             "LimitLens"
+        }
+
+        fn antigravity_usage_json(&self) -> String {
+            self.antigravity_usage_json.clone()
         }
 
         fn claude_usage_json(&self) -> String {
@@ -457,6 +532,7 @@ mod tests {
     #[test]
     fn deepseek_provider_normalizes_balance_lines() {
         let host = FakeHost {
+            antigravity_usage_json: "{}".to_string(),
             claude_usage_json: "{}".to_string(),
             codex_usage_json: "{}".to_string(),
             deepseek_balance_json: r#"
@@ -491,8 +567,39 @@ mod tests {
     }
 
     #[test]
+    fn antigravity_provider_normalizes_usage_lines() {
+        let host = FakeHost {
+            antigravity_usage_json: r#"
+            {
+              "plan_type": "Pro",
+              "pools": [
+                { "label": "Gemini Pro", "remaining_percent": 80, "reset_at": "2099-01-01T00:00:00Z" },
+                { "label": "Gemini Flash", "remaining_percent": 70 },
+                { "label": "Claude", "remaining_percent": 40 }
+              ]
+            }
+            "#
+            .to_string(),
+            ..Default::default()
+        };
+
+        let snapshot = run_antigravity_provider(&host).expect("Antigravity plugin should run");
+
+        assert_eq!(snapshot.provider_id, "antigravity");
+        assert_eq!(snapshot.lines.len(), 4);
+        assert_eq!(snapshot.lines[0].label, "Plan");
+        assert_eq!(snapshot.lines[1].label, "Gemini Pro");
+        assert!(snapshot.lines[1].value.starts_with("80% - Resets in "));
+        assert_eq!(snapshot.lines[2].label, "Gemini Flash");
+        assert_eq!(snapshot.lines[2].value, "70%");
+        assert_eq!(snapshot.lines[3].label, "Claude");
+        assert_eq!(snapshot.lines[3].value, "40%");
+    }
+
+    #[test]
     fn codex_provider_normalizes_usage_lines() {
         let host = FakeHost {
+            antigravity_usage_json: "{}".to_string(),
             claude_usage_json: "{}".to_string(),
             codex_usage_json: r#"
             {
@@ -501,6 +608,8 @@ mod tests {
               "session_reset_at": 1782229464,
               "weekly_remaining_percent": 50,
               "weekly_reset_at": 1782557292,
+              "reset_credit_available_count": 3,
+              "reset_credit_expires_at": ["2099-01-01T00:00:00Z", "2099-01-07T00:00:00Z"],
               "credits_balance": 9
             }
             "#
@@ -512,25 +621,30 @@ mod tests {
         let snapshot = run_codex_provider(&host).expect("Codex plugin should run");
 
         assert_eq!(snapshot.provider_id, "codex".to_string());
-        assert_eq!(snapshot.lines.len(), 4);
+        assert_eq!(snapshot.lines.len(), 5);
         assert_eq!(snapshot.lines[0].label, "Plan");
         assert_eq!(snapshot.lines[1].label, "Session");
         assert!(snapshot.lines[1].value.starts_with("12.5% - Resets in "));
         assert_eq!(snapshot.lines[2].label, "Weekly");
         assert!(snapshot.lines[2].value.starts_with("50% - Resets in "));
-        assert_eq!(snapshot.lines[3].label, "Credits");
+        assert_eq!(snapshot.lines[3].label, "Resets available");
+        assert_eq!(snapshot.lines[3].value, "3 Expiring (1-Jan-99, 7-Jan-99)");
+        assert_eq!(snapshot.lines[4].label, "Credits");
     }
 
     #[test]
     fn claude_provider_normalizes_usage_lines() {
         let host = FakeHost {
+            antigravity_usage_json: "{}".to_string(),
             claude_usage_json: r#"
             {
               "plan_type": "pro 5x",
               "session_remaining_percent": 75,
               "session_reset_at": "2099-01-01T00:00:00.000Z",
               "weekly_remaining_percent": 60,
-              "weekly_reset_at": "2099-01-07T00:00:00.000Z"
+              "weekly_reset_at": "2099-01-07T00:00:00.000Z",
+              "fable_remaining_percent": 40,
+              "fable_reset_at": "2099-01-02T00:00:00.000Z"
             }
             "#
             .to_string(),
@@ -542,12 +656,14 @@ mod tests {
         let snapshot = run_claude_provider(&host).expect("Claude plugin should run");
 
         assert_eq!(snapshot.provider_id, "claude".to_string(),);
-        assert_eq!(snapshot.lines.len(), 3);
+        assert_eq!(snapshot.lines.len(), 4);
         assert_eq!(snapshot.lines[0].label, "Plan");
         assert_eq!(snapshot.lines[1].label, "Session");
         assert!(snapshot.lines[1].value.starts_with("75% - "));
         assert_eq!(snapshot.lines[2].label, "Weekly");
         assert!(snapshot.lines[2].value.starts_with("60% - "));
+        assert_eq!(snapshot.lines[3].label, "Fable 5");
+        assert!(snapshot.lines[3].value.starts_with("40% - "));
     }
 
     #[test]

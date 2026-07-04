@@ -1,6 +1,6 @@
 use crate::{
     plugin_host,
-    providers::{claude, codex, deepseek, opencode_quota},
+    providers::{antigravity, claude, codex, deepseek, opencode_quota},
     secrets,
     snapshot_store::{self, SavedSnapshot},
     tray,
@@ -18,6 +18,20 @@ impl plugin_host::Host for OpenCodeHost {
     }
 
     fn opencode_usage_json(&self) -> String {
+        self.usage_json.clone()
+    }
+}
+
+struct AntigravityHost {
+    usage_json: String,
+}
+
+impl plugin_host::Host for AntigravityHost {
+    fn app_name(&self) -> &'static str {
+        "LimitLens"
+    }
+
+    fn antigravity_usage_json(&self) -> String {
         self.usage_json.clone()
     }
 }
@@ -93,6 +107,23 @@ pub fn delete_deepseek_api_key(slot: u8) -> Result<Vec<secrets::DeepSeekKeySlot>
 
     secrets::delete_deepseek_api_key(slot).map_err(|error| error.to_string())?;
     Ok(secrets::list_deepseek_key_slots())
+}
+
+#[tauri::command]
+pub async fn refresh_antigravity(
+    app: tauri::AppHandle,
+) -> Result<plugin_host::ProviderSnapshot, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let usage_json = antigravity::fetch_usage_summary_json()
+            .map_err(|error| provider_error("Antigravity", &error))?;
+
+        let snapshot = plugin_host::run_antigravity_provider(&AntigravityHost { usage_json })
+            .map_err(|error| internal_error("Antigravity", &error))?;
+        let _ = snapshot_store::save_latest(&app, &snapshot);
+        Ok(snapshot)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
@@ -299,6 +330,9 @@ fn provider_error(provider: &str, error: &impl std::fmt::Display) -> String {
     if message.contains("not found")
         || message.contains("not saved")
         || message.contains("not connected")
+        || message.contains("Start Antigravity")
+        || message.contains("temporarily unavailable")
+        || message.contains("unavailable from the running app")
         || message.contains("does not contain")
     {
         return message;
