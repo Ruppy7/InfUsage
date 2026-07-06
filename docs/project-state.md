@@ -1,29 +1,28 @@
 # Project State
 
-Last checked: 2026-06-30
+Last checked: 2026-07-06
 
 ## Current baseline
 
 - Product name: LimitLens.
 - GitHub repo: `https://github.com/Ruppy7/LimitLens`.
 - Main development branch: `main`.
-- Current merged commit: `2e26b11` (`Add resizable dashboard shell (#4)`).
-- Active feature branch: `feat/provider-expansion`.
+- Current merged commit: `7ca4f55` (`Add provider expansion updates (#5)`).
+- Active feature branch: `feat/dashboard-completion`.
 - Stack: Tauri v2, React, TypeScript, Vite, Rust.
 - Package manager: npm.
 - Distribution: unsigned Windows NSIS installer, portable zip, and SHA256 checksums through GitHub Releases.
 - Latest public release: `v0.1.0`.
+- Target release for this branch: `v0.1.1`.
 
 ## App state
 
-- Windows tray app with a resizable undecorated dashboard window.
-- Manual Focus/Dashboard display modes are being replaced by responsive compact/dashboard layouts based on window size.
+- Windows tray app with the v0.1 compact undecorated tray-panel structure restored.
+- The dashboard/sidebar/provider-page experiment was rolled back on `feat/dashboard-completion`.
 - A draggable always-on-top glance window is implemented; it shows compact remaining quota values and opens the main dashboard on click.
-- Provider cards, status chips, per-provider refresh, global refresh, optional periodic refresh, theme setting, provider sidebar, All dashboard view, provider-specific detail pages, and dashboard grid shell.
-- Provider-specific setup now lives on provider detail pages instead of the global Settings sheet. Settings is app-level only for theme, glance, and refresh cadence.
-- Explicitly disconnected providers are hidden from the sidebar and All view, then restored through the sidebar Add Provider menu.
-- Starred providers sort first in the sidebar and drive the glance window when starred; DeepSeek appears as a single USD balance value instead of `5h | weekly`.
-- The main window is taskbar-visible; the glance window remains skipped from the normal taskbar.
+- Provider cards, status chips, per-provider refresh, global refresh, optional periodic refresh, theme setting, Focus/Dashboard size toggle, Settings provider setup, and pop-out pin behavior are restored.
+- Provider-specific setup lives in the global Settings sheet again.
+- The main tray panel is hidden from the normal taskbar; the glance window remains skipped from the normal taskbar.
 
 ## Provider state
 
@@ -32,15 +31,26 @@ Last checked: 2026-06-30
 - DeepSeek: optional API balance check via a saved key in Windows Credential Manager.
 - OpenCode Go: experimental cookie-backed quota flow against the authenticated workspace page.
 - OpenCode local SQLite spend: documented fallback idea only, not shipped app code.
-- Antigravity: running-app language-server path plus Windows Credential Manager / Cloud Code fallback implemented on `feat/provider-expansion`.
+- Antigravity: running-app language-server path plus Windows Credential Manager / Cloud Code fallback implemented and merged in PR #5.
 
-## Provider expansion plan
+## Provider expansion state
 
-- `feat/provider-expansion` was created from clean `main` after PR #4 merged.
+- PR #5 (`feat/provider-expansion`) is merged into `main`.
 - Local OpenUsage reference docs were reviewed for Antigravity, Cursor, Devin, GitHub Copilot, Grok, OpenRouter, and Z.ai.
-- Implementation order: Antigravity first, then Cursor, then the rest of the providers.
+- Antigravity is implemented with running-app discovery, local Credential Manager fallback, Cloud Code fallback, and OpenUsage-compatible Gemini Pro / Gemini Flash / Claude pools.
+- Codex reset credits and expiry dates are implemented.
+- Claude Fable 5 quota display is implemented when exposed by Claude's usage response.
+- Further provider additions are intentionally paused while the dashboard surface is completed.
+- Future provider order remains Cursor first, then Devin/Copilot/Grok/API-key providers as data quality allows.
 - Cursor's first slice should focus on live quota/credits; stale spend export and local/estimated token-cost analytics remain deferred until source-quality labels are in place.
 - OpenRouter and Z.ai are deferred until DeepSeek's provider-page key flow is generalized into reusable API-key provider management.
+
+## Active dashboard agenda
+
+- Current branch: `feat/dashboard-completion`.
+- Goal: roll back the unsuccessful dashboard layout while preserving the useful provider/glance features.
+- Preserved features: Codex reset credits and expiry display, Claude Fable 5 limits, Antigravity provider, and glance window.
+- Dashboard IA is paused until a better structure is designed.
 
 ## Recent cleanup
 

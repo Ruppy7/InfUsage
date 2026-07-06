@@ -1,7 +1,7 @@
 {
   "name": "limitlens",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Windows tray app for checking AI usage, limits, and balances.",
   "license": "MIT",
   "type": "module",

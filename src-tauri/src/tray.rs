@@ -1,13 +1,18 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager, PhysicalPosition, Position, WindowEvent,
+    Emitter, LogicalSize, Manager, PhysicalPosition, Position, Size, WindowEvent,
 };
 
 const MAIN_WINDOW: &str = "main";
 const GLANCE_WINDOW: &str = "glance";
+const POPUP_MARGIN: i32 = 16;
 const GLANCE_MARGIN: i32 = 8;
+const ALL_SIZE: (f64, f64) = (400.0, 540.0);
+const MINIMAL_SIZE: (f64, f64) = (320.0, 225.0);
+static POPPED_OUT: AtomicBool = AtomicBool::new(false);
 
 pub fn create(app: &tauri::App) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
@@ -89,6 +94,35 @@ pub fn request_close_animation(app: &tauri::AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+pub fn set_popped_out(app: &tauri::AppHandle, popped_out: bool) -> tauri::Result<()> {
+    POPPED_OUT.store(popped_out, Ordering::Relaxed);
+
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+        window.set_always_on_top(true)?;
+        if !popped_out {
+            position_near_bottom_right(&window);
+        }
+    }
+
+    Ok(())
+}
+
+pub fn set_display_mode(app: &tauri::AppHandle, mode: &str) -> tauri::Result<()> {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW) else {
+        return Ok(());
+    };
+
+    let (width, height) = if mode == "minimal" {
+        MINIMAL_SIZE
+    } else {
+        ALL_SIZE
+    };
+
+    window.set_size(Size::Logical(LogicalSize { width, height }))?;
+    show_popup_window_for_size(&window, width, height);
+    Ok(())
+}
+
 pub fn set_glance_visible(
     app: &tauri::AppHandle,
     visible: bool,
@@ -123,10 +157,61 @@ pub fn set_glance_position(app: &tauri::AppHandle, x: i32, y: i32) -> tauri::Res
 }
 
 fn show_popup_window(window: &tauri::WebviewWindow) {
+    let popped_out = POPPED_OUT.load(Ordering::Relaxed);
+    if !popped_out {
+        position_near_bottom_right(window);
+    }
+    show_window(window);
+}
+
+fn show_popup_window_for_size(window: &tauri::WebviewWindow, width: f64, height: f64) {
+    let popped_out = POPPED_OUT.load(Ordering::Relaxed);
+    if !popped_out {
+        position_near_bottom_right_for_size(window, width, height);
+    }
+    show_window(window);
+}
+
+fn show_window(window: &tauri::WebviewWindow) {
     let _ = window.unminimize();
+    let _ = window.set_always_on_top(true);
     let _ = window.emit("tray-popup-opened", ());
     let _ = window.show();
     let _ = window.set_focus();
+}
+
+fn position_near_bottom_right(window: &tauri::WebviewWindow) {
+    let Ok(Some(monitor)) = window.current_monitor() else {
+        return;
+    };
+    let Ok(window_size) = window.outer_size() else {
+        return;
+    };
+
+    let work_area = monitor.work_area();
+    let x = work_area.position.x + work_area.size.width as i32
+        - window_size.width as i32
+        - POPUP_MARGIN;
+    let y = work_area.position.y + work_area.size.height as i32
+        - window_size.height as i32
+        - POPUP_MARGIN;
+
+    let _ = window.set_position(Position::Physical(PhysicalPosition { x, y }));
+}
+
+fn position_near_bottom_right_for_size(window: &tauri::WebviewWindow, width: f64, height: f64) {
+    let Ok(Some(monitor)) = window.current_monitor() else {
+        return;
+    };
+
+    let scale_factor = window.scale_factor().unwrap_or(1.0);
+    let target_width = (width * scale_factor).round() as i32;
+    let target_height = (height * scale_factor).round() as i32;
+    let work_area = monitor.work_area();
+    let x = work_area.position.x + work_area.size.width as i32 - target_width - POPUP_MARGIN;
+    let y = work_area.position.y + work_area.size.height as i32 - target_height - POPUP_MARGIN;
+
+    let _ = window.set_position(Position::Physical(PhysicalPosition { x, y }));
 }
 
 fn position_glance_window(window: &tauri::WebviewWindow) {
