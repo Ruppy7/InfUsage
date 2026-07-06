@@ -84,9 +84,17 @@ Possible future setting:
 
 ### F2 - Dashboard-Only Main Window
 
-**Status:** In Progress
+**Status:** Deferred
+
+Branch: `feat/dashboard-completion`
 
 Goal: remove the current Focus view and make the main window the full dashboard/settings surface.
+
+Rollback note:
+
+- The first dashboard/sidebar layout did not work well enough and was rolled back to the v0.1 tray-panel structure.
+- Preserve the glance window, Codex reset credits, Claude Fable 5, and Antigravity provider work.
+- Revisit dashboard IA after a better design structure is chosen.
 
 Plan:
 
@@ -99,11 +107,17 @@ Plan:
 - Move provider-specific setup out of Settings and onto provider detail pages. Implemented.
 - Add starred providers, sort them first in the sidebar, and use starred providers for the glance window when present. Implemented.
 - Hide explicitly disconnected providers from the sidebar and All view. Implemented.
-- Add a sidebar Add Provider menu for restoring explicitly disconnected providers. Implemented.
+- Add a sidebar Add Provider menu for restoring explicitly disconnected providers. Rolled back with the dashboard layout.
 - Keep compact behavior as a responsive small-window layout rather than a manual Focus mode.
 - Keep tray icon click as the main dashboard launcher.
 - Use responsive breakpoints: compact layouts can still behave like the old focus/dashboard views when the window is small, while larger sizes become a full app-style dashboard.
 - Reserve the larger dashboard for analytics that need room: token spend, usage spend, reset banks, history, and provider setup.
+
+Next slice:
+
+- Pause dashboard implementation work.
+- Keep the v0.1 compact tray panel as the app's main surface while a better dashboard design is worked out.
+- Do not move provider setup out of Settings again until the new information architecture is clear.
 
 Open decision:
 
@@ -113,7 +127,7 @@ Open decision:
 
 ### F3 - Glance Provider Priority
 
-**Status:** Partially Implemented
+**Status:** Deferred
 
 Goal: let users pick which providers appear in the glance window.
 
@@ -133,10 +147,9 @@ Rules:
 
 Current slice:
 
-- Starred providers sort to the top of the dashboard sidebar.
-- The glance window uses starred providers when any supported provider is starred.
-- If no supported provider is starred, the glance window falls back to Codex, Claude, and OpenCode.
-- DeepSeek can appear in the glance window as a single USD balance value when starred.
+- The glance window is preserved as a draggable always-on-top surface.
+- It uses the default compact provider set for now.
+- Starred-provider priority was rolled back with the dashboard/sidebar experiment.
 
 Follow-up:
 
@@ -195,11 +208,18 @@ Rule: do not aggregate estimated and exact usage without preserving the distinct
 
 ### F6 - Provider Expansion Branch
 
-**Status:** In Progress
+**Status:** Implemented
 
 Branch: `feat/provider-expansion`
 
 Goal: add more providers without jumping straight into the full token/cost dashboard. Each provider should first deliver the most reliable quota/balance snapshot it can expose, then token/cost analytics can layer on top once the structured metric model is ready.
+
+Merged in PR #5:
+
+- Antigravity provider with language-server discovery and Credential Manager / Cloud Code fallback.
+- Claude Fable 5 quota display.
+- Codex reset credits and expiry dates.
+- Glance support for three-value providers and Antigravity's Gemini Pro / Gemini Flash / Claude pools.
 
 Research pass completed from local `robinebers/openusage` reference clone:
 
@@ -228,11 +248,11 @@ Provider integration categories:
 | Local logs / estimated spend | Claude/Codex follow-ups, Grok, Cursor if restored | Label as local-only or estimated; do not aggregate as exact spend |
 | Local runtime without subscription quota | Ollama | Research-only until token counting or request wrapping has a clear product meaning |
 
-Next implementation slice:
+Next provider slice after dashboard completion:
 
-- Antigravity now uses Windows running-app discovery first, with Credential Manager / Cloud Code fallback.
-- Older SQLite-token fallback remains research-only unless current Windows installs require it.
-- Antigravity parser/plugin tests cover sanitized response mapping before UI refresh.
+- Cursor, starting with live quota/credits.
+- Older stale spend exports remain deferred until source-quality labels exist.
+- Add provider docs and parser/plugin tests beside the implementation.
 
 ### Current Providers
 
@@ -370,13 +390,14 @@ LimitLens reuse strategy:
 
 ## Suggested Build Order
 
-1. Validate Antigravity language-server and Credential Manager fallback against a real Windows install.
-2. Add Cursor after Antigravity, starting with live quota/credits and deferring stale spend exports.
-3. Add provider docs and tests beside each new provider implementation.
-4. Generalize provider-page API-key management before OpenRouter or Z.ai.
-5. Add F4 structured provider metrics before deeper token/cost aggregation.
-6. Add Grok only after source-quality labels can distinguish exact quota from local-only or estimated spend.
-7. Add unified token/cost dashboard features only after multiple providers expose structured source-quality metadata.
+1. Stabilize the restored v0.1 tray-panel structure with the preserved provider additions.
+2. Revisit dashboard IA before rebuilding a full dashboard surface.
+3. Add F4 structured provider metrics before deeper token/cost aggregation.
+4. Add Cursor after dashboard direction is clearer, starting with live quota/credits and deferring stale spend exports.
+5. Add provider docs and tests beside each new provider implementation.
+6. Generalize API-key management before OpenRouter or Z.ai.
+7. Add Grok only after source-quality labels can distinguish exact quota from local-only or estimated spend.
+8. Add unified token/cost dashboard features only after multiple providers expose structured source-quality metadata.
 
 ## Parking Lot
 

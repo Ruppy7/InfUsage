@@ -17,6 +17,8 @@ pub fn run() {
             commands::hide_tray_window,
             commands::show_tray_window,
             commands::request_tray_close,
+            commands::set_tray_popped_out,
+            commands::set_tray_display_mode,
             commands::set_glance_visible,
             commands::set_glance_position,
             commands::refresh_antigravity,

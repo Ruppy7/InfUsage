@@ -1,6 +1,6 @@
 [package]
 name = "limitlens"
-version = "0.1.0"
+version = "0.1.1"
 description = "Windows-native system-tray AI usage and limits tracker"
 authors = ["Ruppy"]
 edition = "2021"
