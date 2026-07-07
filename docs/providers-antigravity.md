@@ -9,6 +9,7 @@
   - On Windows this credential appears as legacy generic target `gemini:antigravity`; LimitLens tries the Rust keyring lookup first, then reads that known Credential Manager target directly.
 - Discovery:
   - Scan Windows processes for `language_server` with Antigravity markers, then `agy`.
+  - Process discovery uses hidden `powershell.exe` and `netstat` probes so refresh does not open a terminal window from the GUI app.
   - Extract `--csrf_token` and `--extension_server_port` when present.
   - Read listening TCP ports for the process and try the local language-server RPC endpoints.
 - RPC methods:
