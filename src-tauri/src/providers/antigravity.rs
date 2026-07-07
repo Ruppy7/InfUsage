@@ -2,6 +2,8 @@ use base64::{engine::general_purpose, Engine as _};
 use reqwest::blocking::Client;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::{collections::HashMap, process::Command, time::Duration};
 #[cfg(windows)]
 use std::{ffi::OsStr, os::windows::ffi::OsStrExt, ptr};
@@ -30,6 +32,8 @@ const GOOGLE_CLIENT_SECRET_PARTS: &[&str] =
 const KEYRING_SERVICE: &str = "gemini";
 const KEYRING_ACCOUNT: &str = "antigravity";
 const WINDOWS_LEGACY_TARGET: &str = "gemini:antigravity";
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const MODEL_BLACKLIST: &[&str] = &[
     "MODEL_CHAT_20706",
     "MODEL_CHAT_23310",
@@ -509,7 +513,9 @@ fn discover_language_servers() -> Result<Vec<LanguageServer>, AntigravityError> 
 }
 
 fn read_windows_process_rows() -> Result<Vec<ProcessRow>, AntigravityError> {
-    let output = Command::new("powershell.exe")
+    let mut command = Command::new("powershell.exe");
+    hide_probe_window(&mut command);
+    let output = command
         .args([
             "-NoProfile",
             "-NonInteractive",
@@ -668,7 +674,9 @@ fn extract_flag(command: &str, flag: &str) -> Option<String> {
 }
 
 fn listening_ports(pid: u32) -> Result<Vec<u16>, AntigravityError> {
-    let output = Command::new("netstat")
+    let mut command = Command::new("netstat");
+    hide_probe_window(&mut command);
+    let output = command
         .args(["-ano", "-p", "TCP"])
         .output()
         .map_err(|error| AntigravityError::Discovery(error.to_string()))?;
@@ -684,6 +692,14 @@ fn listening_ports(pid: u32) -> Result<Vec<u16>, AntigravityError> {
         pid,
     ))
 }
+
+#[cfg(windows)]
+fn hide_probe_window(command: &mut Command) {
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn hide_probe_window(_command: &mut Command) {}
 
 fn parse_netstat_ports(output: &str, pid: u32) -> Vec<u16> {
     let mut ports = output
