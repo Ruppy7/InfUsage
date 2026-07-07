@@ -17,8 +17,10 @@ This is the living tracker for LimitLens feature ideas, implementation plans, re
 LimitLens should evolve from a tray quota viewer into a unified AI usage dashboard:
 
 - A tiny draggable always-on-top **glance window** for high-priority limits.
-- A resizable **dashboard window** for all-provider analytics, provider details, setup, history, and app settings.
+- A future redesigned **dashboard window** for all-provider analytics, provider details, setup, history, and app settings.
 - A normalized metric model that can separate exact provider-reported usage from inferred, estimated, or local-only usage.
+
+Current app surface after v0.1.1: keep the compact v0.1 tray panel as the main window while the larger dashboard information architecture is redesigned.
 
 ## Near-Term Implementation Plan
 
@@ -86,7 +88,7 @@ Possible future setting:
 
 **Status:** Deferred
 
-Branch: `feat/dashboard-completion`
+Previous branch: `feat/dashboard-completion`
 
 Goal: remove the current Focus view and make the main window the full dashboard/settings surface.
 
@@ -96,18 +98,15 @@ Rollback note:
 - Preserve the glance window, Codex reset credits, Claude Fable 5, and Antigravity provider work.
 - Revisit dashboard IA after a better design structure is chosen.
 
-Plan:
+Reverted first-slice learnings:
 
-- Make the main window resizable with a sensible minimum size. Implemented in first slice.
-- Remove the main-window pin control and main-window always-on-top behavior. Implemented in first slice.
-- Show the main dashboard as a normal taskbar-visible app window. Implemented in first slice.
-- Replace the scaled-up tray card list with an app shell: top bar, provider sidebar, and main dashboard content grid. Implemented in first slice.
-- Add an All view for cross-provider usage, token, model, and price summaries. Implemented as the current overview with analytics placeholders.
-- Make provider sidebar clicks replace the main content with that provider's page. Implemented.
-- Move provider-specific setup out of Settings and onto provider detail pages. Implemented.
-- Add starred providers, sort them first in the sidebar, and use starred providers for the glance window when present. Implemented.
-- Hide explicitly disconnected providers from the sidebar and All view. Implemented.
-- Add a sidebar Add Provider menu for restoring explicitly disconnected providers. Rolled back with the dashboard layout.
+- Making the main window resizable is still likely right for the future dashboard, but the first visual structure was not strong enough.
+- Removing main-window pin/always-on-top behavior may still make sense once the dashboard becomes a normal app window.
+- The All/provider-detail/sidebar model was useful conceptually, but the implementation was rolled back.
+- Provider setup should not move out of Settings again until the new information architecture is clear.
+- Starred providers should become an explicit glance priority feature rather than being tied to a sidebar experiment.
+- Hiding explicitly disconnected providers remains useful, but restore/add-provider UX needs a durable home.
+- The sidebar Add Provider menu was rolled back with the dashboard layout; provider restore/add UX needs to be redesigned.
 - Keep compact behavior as a responsive small-window layout rather than a manual Focus mode.
 - Keep tray icon click as the main dashboard launcher.
 - Use responsive breakpoints: compact layouts can still behave like the old focus/dashboard views when the window is small, while larger sizes become a full app-style dashboard.
@@ -248,7 +247,7 @@ Provider integration categories:
 | Local logs / estimated spend | Claude/Codex follow-ups, Grok, Cursor if restored | Label as local-only or estimated; do not aggregate as exact spend |
 | Local runtime without subscription quota | Ollama | Research-only until token counting or request wrapping has a clear product meaning |
 
-Next provider slice after dashboard completion:
+Next provider slice after dashboard direction is clearer:
 
 - Cursor, starting with live quota/credits.
 - Older stale spend exports remain deferred until source-quality labels exist.
@@ -258,7 +257,7 @@ Next provider slice after dashboard completion:
 
 | Provider | Current Status | Near-Term Work |
 |---|---|---|
-| Codex | Implemented for session/weekly summary | Research reset banks, extra usage, local token spend, structured metrics |
+| Codex | Implemented for session/weekly summary and reset-credit expiry display | Research extra usage, local token spend, structured metrics |
 | Claude / Claude Code | Implemented for quota summary, including Fable 5 when exposed | Research local token/cost spend via logs or ccusage-style tooling |
 | DeepSeek | Implemented for API balance | Keep as balance provider; token usage only if a documented usage API exists |
 | OpenCode Go | Implemented via experimental console cookie | Replace pasted cookie with app-owned session or upstream read-only API if possible |

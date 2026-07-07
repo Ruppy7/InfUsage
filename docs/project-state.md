@@ -1,25 +1,26 @@
 # Project State
 
-Last checked: 2026-07-06
+Last checked: 2026-07-07
 
 ## Current baseline
 
 - Product name: LimitLens.
 - GitHub repo: `https://github.com/Ruppy7/LimitLens`.
 - Main development branch: `main`.
-- Current merged commit: `7ca4f55` (`Add provider expansion updates (#5)`).
-- Active feature branch: `feat/dashboard-completion`.
+- Current merged commit: `882352a` (`Merge pull request #6 from Ruppy7/fix/v0.1.1`).
+- Active code branch: none after PR #6; current docs refresh branch is `docs/v0.1.1-doc-refresh`.
 - Stack: Tauri v2, React, TypeScript, Vite, Rust.
 - Package manager: npm.
 - Distribution: unsigned Windows NSIS installer, portable zip, and SHA256 checksums through GitHub Releases.
 - Latest public release: `v0.1.0`.
-- Target release for this branch: `v0.1.1`.
+- Current source version: `0.1.1`.
+- Next release target: tag and publish `v0.1.1` after final smoke testing.
 
 ## App state
 
 - Windows tray app with the v0.1 compact undecorated tray-panel structure restored.
-- The dashboard/sidebar/provider-page experiment was rolled back on `feat/dashboard-completion`.
-- A draggable always-on-top glance window is implemented; it shows compact remaining quota values and opens the main dashboard on click.
+- The dashboard/sidebar/provider-page experiment was rolled back in PR #6.
+- A draggable always-on-top glance window is implemented; it shows compact remaining quota values and opens the main tray panel on click.
 - Provider cards, status chips, per-provider refresh, global refresh, optional periodic refresh, theme setting, Focus/Dashboard size toggle, Settings provider setup, and pop-out pin behavior are restored.
 - Provider-specific setup lives in the global Settings sheet again.
 - The main tray panel is hidden from the normal taskbar; the glance window remains skipped from the normal taskbar.
@@ -40,21 +41,22 @@ Last checked: 2026-07-06
 - Antigravity is implemented with running-app discovery, local Credential Manager fallback, Cloud Code fallback, and OpenUsage-compatible Gemini Pro / Gemini Flash / Claude pools.
 - Codex reset credits and expiry dates are implemented.
 - Claude Fable 5 quota display is implemented when exposed by Claude's usage response.
-- Further provider additions are intentionally paused while the dashboard surface is completed.
+- Further provider additions are intentionally paused until the dashboard direction is clearer.
 - Future provider order remains Cursor first, then Devin/Copilot/Grok/API-key providers as data quality allows.
 - Cursor's first slice should focus on live quota/credits; stale spend export and local/estimated token-cost analytics remain deferred until source-quality labels are in place.
 - OpenRouter and Z.ai are deferred until DeepSeek's provider-page key flow is generalized into reusable API-key provider management.
 
 ## Active dashboard agenda
 
-- Current branch: `feat/dashboard-completion`.
-- Goal: roll back the unsuccessful dashboard layout while preserving the useful provider/glance features.
-- Preserved features: Codex reset credits and expiry display, Claude Fable 5 limits, Antigravity provider, and glance window.
-- Dashboard IA is paused until a better structure is designed.
+- Current status: paused after the v0.1.1 rollback.
+- Completed rollback: compact v0.1 tray panel restored while preserving Codex reset credits and expiry display, Claude Fable 5 limits, Antigravity provider, and the glance window.
+- Next dashboard work should start from a fresh design structure rather than reviving the reverted sidebar implementation unchanged.
 
 ## Recent cleanup
 
 - `v0.1.0` is released and public.
+- PR #6 prepared and merged the `0.1.1` rollback source state.
+- A local v0.1.1 NSIS installer was built successfully at `src-tauri\target\release\bundle\nsis\LimitLens_0.1.1_x64-setup.exe`.
 - LinkedIn launch post is done.
 - Audit follow-up PR #2 is merged.
 - Completed local/remote work branches were deleted after the v0.1 cleanup; new feature work now happens on conventionally named branches such as `feat/<feature-name>`, `fix/<bug-name>`, `docs/<topic>`, `chore/<task>`, or `refactor/<area>`.

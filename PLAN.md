@@ -186,8 +186,8 @@ Ponytail scope: prove the desktop shell first, then add tray behavior. No settin
 
 - [x] Initial tray visual refresh: custom undecorated popup hidden from the normal taskbar, compact cards, status chips, green connection dots, icon buttons, global/per-provider refresh, editable periodic refresh, OpenCode Go-limits connection row, Focus/Dashboard display control, System/Dark/Light setting, floating pop-out toggle, dimmed light mode, tray-open/close animation, and tighter spacing/typography.
 - [x] Add draggable always-on-top glance window showing compact remaining quota for Codex, Claude, and OpenCode, using `5h | weekly` style values and the tray icon/main window for the expansive dashboard view.
-- [x] Start resizable dashboard transition: remove main-window pin/always-on-top behavior, make the main window taskbar-visible and resizable, and introduce the first sidebar + dashboard-grid shell.
-- [x] Trial first dashboard navigation layer: All providers view, provider-specific detail pages, provider setup moved out of Settings, disconnected providers hidden/restorable from Add Provider, starred providers sorted to the top, and starred providers feeding the glance window with existing defaults as fallback.
+- [x] Trial resizable dashboard transition, then roll it back: the first sidebar/dashboard shell was explored but did not work well enough to keep.
+- [x] Trial first dashboard navigation layer, then roll it back: All providers view, provider-specific detail pages, moved setup, Add Provider restore, and starred/glance coupling are not current app behavior.
 - [x] Roll back dashboard navigation layer to v0.1 tray-panel structure while preserving glance, Antigravity, Claude Fable 5, and Codex reset credits.
 - [ ] Revisit dashboard IA after a stronger design structure is chosen.
 - [x] Enable local NSIS installer build for smoke testing.
