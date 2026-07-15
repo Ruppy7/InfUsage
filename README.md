@@ -18,6 +18,9 @@
 
 ---
 
+> [!NOTE]
+> **Development is paused.** LimitLens remains a working Windows utility and a project its maintainer is proud of, but active development is paused because [Orca](https://www.onorca.dev/) now covers the maintainer's day-to-day agent workflow, including usage and rate-limit tracking. Newcomers looking for an actively developed all-in-one agent environment can visit the [Orca GitHub repository](https://github.com/stablyai/orca).
+
 It is built with Tauri, React, TypeScript, and Rust. Provider credentials and session data are kept in Windows Credential Manager where possible, and the UI shows only sanitized usage summaries.
 
 <p align="center">

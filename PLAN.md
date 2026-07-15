@@ -2,6 +2,12 @@
 
 LimitLens is a Windows-native system-tray app that tracks AI usage, limits, and spend in one place. It is a real utility and a pairing/learning project.
 
+## Current project status
+
+**Development paused as of 2026-07-15.** LimitLens remains a working Windows utility and a project its maintainer is proud of. Active development is paused because [Orca](https://www.onorca.dev/) now covers the maintainer's day-to-day agent workflow, including usage and rate-limit tracking. Newcomers can explore its source at the [Orca GitHub repository](https://github.com/stablyai/orca).
+
+The existing LimitLens code, releases, decisions, and learning history remain available. There is no planned restart date or active feature roadmap.
+
 ## Product scope
 
 - **Core:** OpenAI Codex; Anthropic Claude / Claude Code as one shared-limits integration; OpenCode Go; Antigravity (AGY).
